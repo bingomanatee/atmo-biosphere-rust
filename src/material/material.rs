@@ -153,7 +153,8 @@ impl MaterialPhase {
             // Bulk modulus K = -V * (dP/dV) ≈ ρ * (dP/dρ)
             // For small pressure changes: ρ = ρ₀ * (1 + P/K)
             let reference_pressure = 101325.0; // Standard atmospheric pressure
-            let pressure_diff = (params.pressure_pa - reference_pressure).clamp(-50000.0, 1000000.0);
+            // Clamp to geological pressure range: ~0.1 atm to deep mantle (~1e15 Pa)
+            let pressure_diff = (params.pressure_pa - reference_pressure).clamp(-90000.0, 1e15);
 
             // Apply both temperature and pressure corrections
             let density_correction = 1.0 + (pressure_diff / bulk_modulus_f64);

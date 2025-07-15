@@ -57,8 +57,8 @@ mod tests {
     fn test_calculate_pressure_from_mass_volume() {
         let phase = create_test_material_phase();
         
-        // Test with standard conditions
-        let params = PressureCalculationParams::at_stp(1000000000.0, 1.0); // 1 billion kg in 1 km³
+        // Test with standard conditions - use correct mass for 1 km³ of water
+        let params = PressureCalculationParams::at_stp(1e12, 1.0); // 1 trillion kg in 1 km³ (water density)
         let pressure = phase.calculate_pressure_from_mass_volume(params);
         
         // Should be close to standard atmospheric pressure for this density
@@ -67,7 +67,7 @@ mod tests {
 
     #[test]
     fn test_calculate_pressure_ideal_gas() {
-        let params = PressureCalculationParams::at_stp(1.29, 1.0); // Air mass at STP
+        let params = PressureCalculationParams::at_stp(1.29e9, 1.0); // Air mass at STP for 1 km³
         let molar_mass_air = 0.029; // kg/mol for air
         
         let pressure = MaterialPhase::calculate_pressure_ideal_gas(params, molar_mass_air);

@@ -26,7 +26,6 @@ mod energy_banking_tests {
             height_km: 1.0,
             top_km: 0.0,
             material_name: "water".to_string(),
-            material_phase: MaterialPhases::Solid,
             planet_radius_km: 3390.0, // Mars radius
         };
         EnergyMassCell::new(props)

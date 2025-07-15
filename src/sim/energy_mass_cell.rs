@@ -41,27 +41,51 @@ impl EnergyMassCell {
         MaterialsLoader::get_phase_properties(&self.material_name, self.material_phase)
     }
 
-    /// Calculate effective melting temperature based on current pressure
+    /// Calculate effective melting temperature based on current pressure using Clausius-Clapeyron equation
     fn effective_melt_temp(&self) -> f64 {
         let material = self.material();
         let base_melt_temp = material.melt_temp as f64;
-        let pressure_diff = (self.pressure_pa - 101325.0).clamp(-50000.0, 1000000.0); // Clamp to reasonable range
+        // Clamp to geological pressure range: ~0.1 atm to deep mantle (~1e15 Pa)
+        let pressure_diff = (self.pressure_pa - 101325.0).clamp(-90000.0, 1e15);
 
-        // Use Clausius-Clapeyron relation: dT/dP = T*ΔV/ΔH
-        // For most materials, higher pressure raises melting point
-        let pressure_slope = 0.0001; // Default slope in K/Pa - should come from material properties
-        base_melt_temp + (pressure_slope * pressure_diff)
+        // Use Clausius-Clapeyron relation: dT/dP = T*ΔV/L
+        // Calculate specific volume change: ΔV = 1/ρ_liquid - 1/ρ_solid
+        let rho_solid = material.density_kg_m3 as f64; // Solid density
+        let rho_liquid = rho_solid * 0.92; // Water expands ~8% when melting (liquid is less dense)
+        let delta_v_specific = (1.0 / rho_liquid) - (1.0 / rho_solid); // m³/kg
+
+        // Latent heat of fusion (J/kg)
+        let latent_heat_fusion = material.latent_heat_fusion as f64;
+
+        // Clausius-Clapeyron slope: dT/dP = T*ΔV/L (K/Pa)
+        let dt_dp = (base_melt_temp * delta_v_specific) / latent_heat_fusion;
+
+        base_melt_temp + (dt_dp * pressure_diff)
     }
 
-    /// Calculate effective boiling temperature based on current pressure
+    /// Calculate effective boiling temperature based on current pressure using Clausius-Clapeyron equation
     fn effective_boil_temp(&self) -> f64 {
         let material = self.material();
         let base_boil_temp = material.boil_temp as f64;
-        let pressure_diff = (self.pressure_pa - 101325.0).clamp(-50000.0, 1000000.0); // Clamp to reasonable range
+        // Clamp to geological pressure range: ~0.1 atm to deep mantle (~1e15 Pa)
+        let pressure_diff = (self.pressure_pa - 101325.0).clamp(-90000.0, 1e15);
 
-        // Higher pressure always raises boiling point
-        let pressure_slope = 0.0003; // Default slope in K/Pa - should come from material properties
-        base_boil_temp + (pressure_slope * pressure_diff)
+        // Use Clausius-Clapeyron relation: dT/dP = T*ΔV/L
+        // Calculate specific volume change: ΔV = 1/ρ_gas - 1/ρ_liquid
+        let rho_liquid = material.density_kg_m3 as f64 * 0.92; // Liquid density (water is ~8% less dense than solid)
+
+        // Gas density at standard conditions (ideal gas approximation)
+        // For water vapor at 373K and 1 atm: ρ ≈ 0.598 kg/m³
+        let rho_gas = 0.598; // kg/m³ (much less dense than liquid)
+        let delta_v_specific = (1.0 / rho_gas) - (1.0 / rho_liquid); // m³/kg
+
+        // Latent heat of vaporization (J/kg)
+        let latent_heat_vapor = material.latent_heat_vapor as f64;
+
+        // Clausius-Clapeyron slope: dT/dP = T*ΔV/L (K/Pa)
+        let dt_dp = (base_boil_temp * delta_v_specific) / latent_heat_vapor;
+
+        base_boil_temp + (dt_dp * pressure_diff)
     }
 
     /// Get phase thresholds for energy-based phase determination
@@ -69,6 +93,8 @@ impl EnergyMassCell {
         let material = self.material();
         let effective_melt = self.effective_melt_temp();
         let effective_boil = self.effective_boil_temp();
+
+
 
         let melt_energy_threshold = self.mass_kg * material.specific_heat_capacity_j_per_kg_k as f64 * effective_melt;
         let boil_energy_threshold = self.mass_kg * material.specific_heat_capacity_j_per_kg_k as f64 * effective_boil;
@@ -152,10 +178,22 @@ impl EnergyMassCell {
         // Calculate effective transition temperatures for this pressure
         let base_melt_temp = material.melt_temp as f64;
         let base_boil_temp = material.boil_temp as f64;
-        let pressure_diff = (pressure - 101325.0).clamp(-50000.0, 1000000.0); // Clamp to reasonable range
+        // Clamp to geological pressure range: ~0.1 atm to deep mantle (~1e15 Pa)
+        let pressure_diff = (pressure - 101325.0).clamp(-90000.0, 1e15);
 
-        let effective_melt = base_melt_temp + (0.0001 * pressure_diff);
-        let effective_boil = base_boil_temp + (0.0003 * pressure_diff);
+        // Use Clausius-Clapeyron relation for material-specific pressure effects
+        // Calculate melting point pressure effect
+        let rho_solid = material.density_kg_m3 as f64;
+        let rho_liquid = rho_solid * 0.92; // Water expands ~8% when melting
+        let delta_v_melt = (1.0 / rho_liquid) - (1.0 / rho_solid);
+        let dt_dp_melt = (base_melt_temp * delta_v_melt) / (material.latent_heat_fusion as f64);
+        let effective_melt = base_melt_temp + (dt_dp_melt * pressure_diff);
+
+        // Calculate boiling point pressure effect
+        let rho_gas = 0.598; // kg/m³ for water vapor at standard conditions
+        let delta_v_boil = (1.0 / rho_gas) - (1.0 / rho_liquid);
+        let dt_dp_boil = (base_boil_temp * delta_v_boil) / (material.latent_heat_vapor as f64);
+        let effective_boil = base_boil_temp + (dt_dp_boil * pressure_diff);
 
         if temp < effective_melt {
             MaterialPhases::Solid

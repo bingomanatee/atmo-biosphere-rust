@@ -61,7 +61,8 @@ mod tests {
         let mass = phase.calculate_mass_from_pressure_volume(params);
         
         // Should be close to density * volume for standard conditions
-        assert!(mass > 900.0 && mass < 1100.0, "Mass calculation failed: got {}", mass);
+        // 1 km³ = 1e9 m³, water density ≈ 1000 kg/m³, so mass ≈ 1e12 kg
+        assert!(mass > 9e11 && mass < 1.1e12, "Mass calculation failed: got {}", mass);
     }
 
     #[test]
@@ -71,8 +72,9 @@ mod tests {
         
         let mass = MaterialPhase::calculate_mass_ideal_gas(params, molar_mass_air);
         
-        // Should be approximately 1.29 kg for air at STP
-        assert!((mass - 1.29).abs() < 0.1, "Ideal gas calculation failed: got {}", mass);
+        // Should be approximately 1.29 kg/m³ * 1e9 m³ = 1.29e9 kg for air at STP in 1 km³
+        let expected_mass = 1.29e9; // kg for 1 km³ of air at STP
+        assert!((mass - expected_mass).abs() < 1e8, "Ideal gas calculation failed: got {}", mass);
     }
 
     #[test]

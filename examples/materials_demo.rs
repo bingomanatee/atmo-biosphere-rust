@@ -1,4 +1,6 @@
-use atmo_biosphere_rust::material::{MaterialsLoader, MaterialPhases, get_phase_properties_by_name};
+use atmo_biosphere_rust::material::{
+    MaterialPhases, MaterialsLoader, get_phase_properties_by_name,
+};
 
 fn main() -> Result<(), String> {
     println!("=== Materials Loader Demo ===\n");
@@ -16,22 +18,34 @@ fn main() -> Result<(), String> {
     match MaterialsLoader::get_phase_properties("basalt", MaterialPhases::Solid) {
         Ok(phase) => {
             println!("   Density: {} kg/m³", phase.density_kg_m3);
-            println!("   Thermal conductivity: {} W/(m·K)", phase.thermal_conductivity_w_m_k);
-            println!("   Specific heat capacity: {} J/(kg·K)", phase.specific_heat_capacity_j_per_kg_k);
-            if let Some(melt_temp) = phase.melt_temp {
-                println!("   Melting temperature: {} K", melt_temp);
-            }
+            println!(
+                "   Thermal conductivity: {} W/(m·K)",
+                phase.thermal_conductivity_w_m_k
+            );
+            println!(
+                "   Specific heat capacity: {} J/(kg·K)",
+                phase.specific_heat_capacity_j_per_kg_k
+            );
+
+            println!("   Melting temperature: {} K", phase.melt_temp);
+
             if let Some(bulk_modulus) = phase.bulk_modulus_pa {
                 println!("   Bulk modulus: {} Pa", bulk_modulus);
             }
             // Show scaled fractional values
             if let Some(gas_interference) = phase.gas_interference_factor {
-                println!("   Gas interference factor: {} (scaled by 1000, original: {:.3})",
-                    gas_interference, gas_interference as f64 / 1000.0);
+                println!(
+                    "   Gas interference factor: {} (scaled by 1000, original: {:.3})",
+                    gas_interference,
+                    gas_interference as f64 / 1000.0
+                );
             }
             if let Some(thermal_expansivity) = phase.thermal_expansivity {
-                println!("   Thermal expansivity: {} (scaled by 1e9, original: {:.2e})",
-                    thermal_expansivity, thermal_expansivity as f64 / 1e9);
+                println!(
+                    "   Thermal expansivity: {} (scaled by 1e9, original: {:.2e})",
+                    thermal_expansivity,
+                    thermal_expansivity as f64 / 1e9
+                );
             }
         }
         Err(e) => println!("   Error: {}", e),
@@ -43,11 +57,19 @@ fn main() -> Result<(), String> {
     match get_phase_properties_by_name("water", "liquid") {
         Ok(phase) => {
             println!("   Density: {} kg/m³", phase.density_kg_m3);
-            println!("   Thermal conductivity: {} W/(m·K)", phase.thermal_conductivity_w_m_k);
-            println!("   Specific heat capacity: {} J/(kg·K)", phase.specific_heat_capacity_j_per_kg_k);
+            println!(
+                "   Thermal conductivity: {} W/(m·K)",
+                phase.thermal_conductivity_w_m_k
+            );
+            println!(
+                "   Specific heat capacity: {} J/(kg·K)",
+                phase.specific_heat_capacity_j_per_kg_k
+            );
             if let Some(dynamic_viscosity) = phase.dynamic_viscosity {
-                println!("   Dynamic viscosity: {} Pa·s (original: {:.3e})",
-                    dynamic_viscosity, dynamic_viscosity as f64);
+                println!(
+                    "   Dynamic viscosity: {} Pa·s (original: {:.3e})",
+                    dynamic_viscosity, dynamic_viscosity as f64
+                );
             }
         }
         Err(e) => println!("   Error: {}", e),
@@ -97,7 +119,12 @@ fn main() -> Result<(), String> {
     for phase_str in &phase_strings {
         match MaterialPhases::from_str(phase_str) {
             Some(phase_enum) => {
-                println!("   '{}' -> {:?} -> '{}'", phase_str, phase_enum, phase_enum.as_str());
+                println!(
+                    "   '{}' -> {:?} -> '{}'",
+                    phase_str,
+                    phase_enum,
+                    phase_enum.as_str()
+                );
             }
             None => {
                 println!("   '{}' -> Invalid phase name", phase_str);
@@ -114,8 +141,10 @@ fn main() -> Result<(), String> {
     for phase_enum in MaterialPhases::all_phases() {
         match MaterialsLoader::get_phase_properties("water", phase_enum) {
             Ok(phase) => {
-                println!("     {:?} - Density: {} kg/m³, Thermal conductivity: {} W/(m·K)",
-                    phase_enum, phase.density_kg_m3, phase.thermal_conductivity_w_m_k);
+                println!(
+                    "     {:?} - Density: {} kg/m³, Thermal conductivity: {} W/(m·K)",
+                    phase_enum, phase.density_kg_m3, phase.thermal_conductivity_w_m_k
+                );
             }
             Err(e) => println!("     {:?}: Error - {}", phase_enum, e),
         }
@@ -127,8 +156,10 @@ fn main() -> Result<(), String> {
     for phase_name in &phases {
         match get_phase_properties_by_name("water", phase_name) {
             Ok(phase) => {
-                println!("     '{}' - Density: {} kg/m³, Thermal conductivity: {} W/(m·K)",
-                    phase_name, phase.density_kg_m3, phase.thermal_conductivity_w_m_k);
+                println!(
+                    "     '{}' - Density: {} kg/m³, Thermal conductivity: {} W/(m·K)",
+                    phase_name, phase.density_kg_m3, phase.thermal_conductivity_w_m_k
+                );
             }
             Err(e) => println!("     '{}': Error - {}", phase_name, e),
         }

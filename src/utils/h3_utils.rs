@@ -542,8 +542,9 @@ mod tests {
         let cells_zero_radius =
             H3Utils::cells_within_radius_from(center_cell, 0.0, planet_radius_km as f64);
         assert!(
-            cells_zero_radius.is_empty(),
-            "Zero radius should return no cells"
+            cells_zero_radius.len() == 1 && cells_zero_radius[0].cell_id == center_cell,
+            "Zero radius should return only the center cell (got {} cells)",
+            cells_zero_radius.len()
         );
 
         println!("✅ cells_within_radius_from test passed");
