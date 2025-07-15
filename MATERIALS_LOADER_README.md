@@ -6,7 +6,7 @@ This module provides functionality to load material properties from JSON data an
 
 The materials loader system consists of several components:
 
-1. **MaterialPhase struct** - Stores material properties as u32/u64 values for consistency with the codebase
+1. **MaterialPhase struct** - Stores material properties as u32/f64 values for consistency with the codebase
 2. **MaterialPhases enum** - Represents the three phases: Solid, Liquid, Gas
 3. **MaterialsLoader** - Main loader that parses JSON and provides access functions
 4. **MaterialUtils** - Utility functions for converting scaled values back to f64 for calculations
@@ -14,7 +14,7 @@ The materials loader system consists of several components:
 ## Key Features
 
 - **JSON Loading**: Loads materials from `src/material/materials.json` using the existing JsonParser
-- **Type Safety**: Uses u32/u64 types for material properties to match codebase expectations
+- **Type Safety**: Uses u32/f64 types for material properties to match codebase expectations
 - **Enum-based Phases**: Uses MaterialPhases enum (Solid, Liquid, Gas) with string conversion
 - **Caching**: Materials are cached in memory for efficient repeated access
 - **Error Handling**: Comprehensive error handling for missing materials/phases

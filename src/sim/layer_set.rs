@@ -1,49 +1,51 @@
 use crate::energy_mass::energy_mass::EnergyMass;
-use crate::material::material::{MaterialPhase, MaterialPhases};
-use crate::material::materials_loader::MaterialsLoader;
 use h3o::{CellIndex, Resolution};
 use std::collections::HashMap;
+use crate::sim::energy_mass_cell::EnergyMassCell;
+use crate::utils::h3_utils::H3Utils;
 
-struct EnergyMassCell {
+struct Column {
     cell_index: CellIndex,
-    energy_joules: u64,
-    mass_kg: u64,
-    volume_km3: u64,
-    material_name: String,
-    material_phase: MaterialPhases,
-    cached_phase: Option<MaterialPhase>,
-}
-
-impl EnergyMassCell {
-    fn get_material_phase(&self) -> Result<&MaterialPhase, String> {
-        // In a real implementation, you'd want to cache this properly
-        // For now, this is just a placeholder to satisfy the trait
-        Err("Material phase loading not implemented".to_string())
-    }
-}
-
-impl EnergyMass for EnergyMassCell {
-    fn energy_joules(&self) -> u64 {
-        self.energy_joules
-    }
-
-    fn mass_kg(&self) -> u64 {
-        self.mass_kg
-    }
-
-    fn volume_km3(&self) -> u64 {
-        self.volume_km3
-    }
-
-    fn material(&self) -> &MaterialPhase {
-        // This is a placeholder implementation
-        // In a real scenario, you'd want to properly handle the Result
-        // and cache the MaterialPhase in the struct
-        todo!("Implement proper material phase loading and caching")
-    }
+    cells: Vec<EnergyMassCell>,
+    start_height_km: f64,
 }
 
 struct LayerSet {
-    layers: HashMap<CellIndex, EnergyMassCell>,
+    layers: HashMap<CellIndex, Column>,
     resolution: Resolution,
+    start_height_km: f64,
 }
+
+pub struct LayerSetParams {
+    pub resolution: Resolution,
+    pub start_height_km: f64,
+    pub cell_height_km: f64,
+    pub material_name: String,
+    pub column_count: usize
+}
+
+impl LayerSet {
+    fn new(params: LayerSetParams) -> Self {
+        let mut layers = HashMap::new();
+        for (cel_id, _) in H3Utils:: iter_cells_with_base(params.resolution) {
+            let cells: Vec<EnergyMassCell> = Vec::new();
+            for index in 0..params.column_count {
+                let _height = params.start_height_km + index as f64 * params.cell_height_km;
+                
+            }
+            layers.insert(
+                cel_id,
+                Column {
+                    cell_index: cel_id,
+                    cells,
+                    start_height_km: params.start_height_km,
+                }
+            );
+        }
+        LayerSet {
+            layers,
+            resolution: params.resolution,
+            start_height_km: params.start_height_km,
+        }
+    }
+}   

@@ -94,42 +94,62 @@ impl MaterialsLoader {
         let phase_obj = phase_data.as_object()
             .ok_or("Material phase data must be an object")?;
 
-        // Helper function to get required f64 value and convert to u32
-        let get_required_u32 = |key: &str| -> Result<u32, String> {
+        // Helper function to get required f64 value and convert to f32
+        let get_required_f32 = |key: &str| -> Result<f32, String> {
             let value = phase_obj.get(key)
                 .and_then(|v| v.as_f64())
                 .ok_or_else(|| format!("Missing or invalid required field: {}", key))?;
 
-            // Handle fractional values by rounding and ensure it fits in u32
+            // Ensure it fits in f32
+            if value > f32::MAX as f64 {
+                return Err(format!("Value too large for f32 in {}: {}", key, value));
+            }
+            Ok(value as f32)
+        };
+
+        // Helper function to get optional f32 value
+        let get_optional_f32 = |key: &str| -> Option<f32> {
+            phase_obj.get(key)
+                .and_then(|v| v.as_f64())
+                .map(|value| value as f32)
+        };
+
+        // Helper function to get required u32 value (for integer fields)
+        let get_required_u32 = |key: &str| -> Result<f32, String> {
+            let value = phase_obj.get(key)
+                .and_then(|v| v.as_f64())
+                .ok_or_else(|| format!("Missing or invalid required field: {}", key))?;
+
+            // Handle fractional values by rounding and ensure it fits in f32
             if value < 0.0 {
                 return Err(format!("Negative value not allowed for {}: {}", key, value));
             }
-            if value > u32::MAX as f64 {
-                return Err(format!("Value too large for u32 in {}: {}", key, value));
+            if value > f32::MAX as f64 {
+                return Err(format!("Value too large for f32 in {}: {}", key, value));
             }
-            Ok(value.round() as u32)
+            Ok(value.round() as f32)
         };
 
-        // Helper function to get optional f64 value and convert to u32
-        let get_optional_u32 = |key: &str| -> Option<u32> {
+        // Helper function to get optional f64 value and convert to f32
+        let get_optional_u32 = |key: &str| -> Option<f32> {
             phase_obj.get(key)
                 .and_then(|v| v.as_f64())
                 .and_then(|value| {
-                    if value >= 0.0 && value <= u32::MAX as f64 {
-                        Some(value.round() as u32)
+                    if value >= 0.0 && value <= f32::MAX as f64 {
+                        Some(value.round() as f32)
                     } else {
                         None
                     }
                 })
         };
 
-        // Helper function to get optional f64 value and convert to u64 (for very large values)
-        let get_optional_u64 = |key: &str| -> Option<u64> {
+        // Helper function to get optional f64 value and convert to f64 (for very large values)
+        let get_optional_u64 = |key: &str| -> Option<f64> {
             phase_obj.get(key)
                 .and_then(|v| v.as_f64())
                 .and_then(|value| {
-                    if value >= 0.0 && value <= u64::MAX as f64 {
-                        Some(value.round() as u64)
+                    if value >= 0.0 && value <= f64::MAX as f64 {
+                        Some(value.round() as f64)
                     } else {
                         None
                     }
@@ -137,13 +157,13 @@ impl MaterialsLoader {
         };
 
         // Special handling for fractional values that should be scaled
-        let get_fractional_as_u32 = |key: &str, scale: f64| -> Option<u32> {
+        let get_fractional_as_u32 = |key: &str, scale: f64| -> Option<f32> {
             phase_obj.get(key)
                 .and_then(|v| v.as_f64())
                 .and_then(|value| {
                     let scaled = value * scale;
-                    if scaled >= 0.0 && scaled <= u32::MAX as f64 {
-                        Some(scaled.round() as u32)
+                    if scaled >= 0.0 && scaled <= f32::MAX as f64 {
+                        Some(scaled.round() as f32)
                     } else {
                         None
                     }
@@ -156,12 +176,19 @@ impl MaterialsLoader {
             thermal_conductivity_w_m_k: get_required_u32("thermal_conductivity_w_m_k")?,
             thermal_transmission_r0_min: get_required_u32("thermal_transmission_r0_min")?,
             thermal_transmission_r0_max: get_required_u32("thermal_transmission_r0_max")?,
-            melt_temp: get_optional_u32("melt_temp"),
+            melt_temp: get_optional_f32("melt_temp").unwrap_or_else(|| {
+                // If melt_temp is not provided, calculate from min/max if available
+                if let (Some(min), Some(max)) = (get_optional_u32("melt_temp_min"), get_optional_u32("melt_temp_max")) {
+                    (min + max) / 2.0
+                } else {
+                    273.15 // Default to water freezing point
+                }
+            }),
             melt_temp_min: get_optional_u32("melt_temp_min"),
             melt_temp_max: get_optional_u32("melt_temp_max"),
-            latent_heat_fusion: get_optional_u32("latent_heat_fusion"),
-            boil_temp: get_optional_u32("boil_temp"),
-            latent_heat_vapor: get_optional_u32("latent_heat_vapor"),
+            latent_heat_fusion: get_required_f32("latent_heat_fusion")?,
+            boil_temp: get_required_f32("boil_temp")?,
+            latent_heat_vapor: get_required_f32("latent_heat_vapor")?,
             // Gas interference factor is fractional (0.0-1.0), scale by 1000 to preserve precision
             gas_interference_factor: get_fractional_as_u32("gas_interference_factor", 1000.0),
             // Thermal conduction modifier is fractional, scale by 1000
@@ -301,7 +328,7 @@ mod tests {
         assert!(result.is_ok(), "Failed to get basalt solid properties: {:?}", result.err());
 
         let phase = result.unwrap();
-        assert!(phase.density_kg_m3 > 0, "Invalid density value");
+        assert!(phase.density_kg_m3 > 0.0, "Invalid density value");
     }
 
     #[test]
@@ -310,7 +337,7 @@ mod tests {
         assert!(result.is_ok(), "Failed to get water liquid properties: {:?}", result.err());
 
         let phase = result.unwrap();
-        assert_eq!(phase.density_kg_m3, 1000, "Water density should be 1000 kg/m³");
+        assert_eq!(phase.density_kg_m3, 1000.0, "Water density should be 1000 kg/m³");
     }
 
     #[test]

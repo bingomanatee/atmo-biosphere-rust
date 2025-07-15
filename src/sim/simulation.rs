@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 pub struct SimulationConfig {
     pub steps: u64,
-    pub years_per_step: u64,
+    pub years_per_step: f64,
     pub warmup_steps: u64,
 }
 
@@ -70,7 +70,7 @@ impl Simulation {
         // Put the components back
         self.components = components;
     }
-    
+
     fn current_year(&self) -> i64 {
         self.step * self.config.years_per_step as i64
     }
