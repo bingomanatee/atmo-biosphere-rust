@@ -33,7 +33,6 @@ pub struct EnergyMassCellProps {
     pub height_km: f64,
     pub top_km: f64,
     pub material_name: String,
-    pub material_phase: MaterialPhases,
     pub planet_radius_km: f64,
 }
 
@@ -46,7 +45,7 @@ impl EnergyMassCell {
     fn effective_melt_temp(&self) -> f64 {
         let material = self.material();
         let base_melt_temp = material.melt_temp as f64;
-        let pressure_diff = self.pressure_pa - 101325.0; // Standard atmospheric pressure
+        let pressure_diff = (self.pressure_pa - 101325.0).clamp(-50000.0, 1000000.0); // Clamp to reasonable range
 
         // Use Clausius-Clapeyron relation: dT/dP = T*ΔV/ΔH
         // For most materials, higher pressure raises melting point
@@ -58,7 +57,7 @@ impl EnergyMassCell {
     fn effective_boil_temp(&self) -> f64 {
         let material = self.material();
         let base_boil_temp = material.boil_temp as f64;
-        let pressure_diff = self.pressure_pa - 101325.0;
+        let pressure_diff = (self.pressure_pa - 101325.0).clamp(-50000.0, 1000000.0); // Clamp to reasonable range
 
         // Higher pressure always raises boiling point
         let pressure_slope = 0.0003; // Default slope in K/Pa - should come from material properties
@@ -153,7 +152,7 @@ impl EnergyMassCell {
         // Calculate effective transition temperatures for this pressure
         let base_melt_temp = material.melt_temp as f64;
         let base_boil_temp = material.boil_temp as f64;
-        let pressure_diff = pressure - 101325.0;
+        let pressure_diff = (pressure - 101325.0).clamp(-50000.0, 1000000.0); // Clamp to reasonable range
 
         let effective_melt = base_melt_temp + (0.0001 * pressure_diff);
         let effective_boil = base_boil_temp + (0.0003 * pressure_diff);
@@ -178,28 +177,63 @@ impl EnergyMassCell {
 
     /// Create a new EnergyMassCell
     pub fn new(props: EnergyMassCellProps) -> Self {
-        let material =
-            MaterialsLoader::get_phase_properties(&props.material_name, props.material_phase)
-                .unwrap();
-
-        let area = H3Utils::cell_area(props.cell_index.resolution(), 3390.0);
+        let area = H3Utils::cell_area(props.cell_index.resolution(), props.planet_radius_km);
         let volume_km3 = area * props.height_km;
 
-        // Calculate mass using the MaterialPhase method
-        let mass_kg = material.calculate_mass_from_pressure_volume(MassCalculationParams {
+        // Start with a default phase (Solid) to get initial material properties
+        let initial_phase = MaterialPhases::Solid;
+        let initial_material = MaterialsLoader::get_phase_properties(&props.material_name, initial_phase)
+            .expect("Failed to load material properties");
+
+        // Calculate initial mass using the default phase
+        let initial_mass_kg = initial_material.calculate_mass_from_pressure_volume(MassCalculationParams {
             pressure_pa: props.pressure_pa,
             volume_km3,
             temperature_k: props.temperature_kelvin,
         });
 
-        let energy_joules = mass_kg * material.specific_heat_capacity_j_per_kg_k as f64;
+        // Create temporary cell to use phase determination methods
+        let temp_cell = EnergyMassCell {
+            cell_index: props.cell_index,
+            energy_joules: 0.0, // Will be calculated after phase determination
+            mass_kg: initial_mass_kg,
+            material_name: props.material_name.clone(),
+            material_phase: initial_phase, // Initial phase
+            height_km: props.height_km,
+            top_km: props.top_km,
+            bottom_km: props.height_km + props.top_km,
+            pressure_pa: props.pressure_pa,
+            phase_transition_energy_bank: 0.0,
+            planet_radius_km: props.planet_radius_km,
+        };
+
+        // Determine the correct phase based on temperature and pressure
+        let correct_phase = temp_cell.determine_phase_at_conditions(props.temperature_kelvin, props.pressure_pa);
+
+        // Get material properties for the correct phase
+        let final_material = MaterialsLoader::get_phase_properties(&props.material_name, correct_phase)
+            .expect("Failed to load material properties for correct phase");
+
+        // Recalculate mass with the correct phase if needed
+        let final_mass_kg = if correct_phase != initial_phase {
+            final_material.calculate_mass_from_pressure_volume(MassCalculationParams {
+                pressure_pa: props.pressure_pa,
+                volume_km3,
+                temperature_k: props.temperature_kelvin,
+            })
+        } else {
+            initial_mass_kg
+        };
+
+        // Calculate energy based on temperature and mass with correct phase
+        let energy_joules = final_mass_kg * final_material.specific_heat_capacity_j_per_kg_k as f64 * props.temperature_kelvin;
 
         EnergyMassCell {
             cell_index: props.cell_index,
             energy_joules,
-            mass_kg,
+            mass_kg: final_mass_kg,
             material_name: props.material_name,
-            material_phase: props.material_phase,
+            material_phase: correct_phase, // Use the determined phase
             height_km: props.height_km,
             top_km: props.top_km,
             bottom_km: props.height_km + props.top_km,
