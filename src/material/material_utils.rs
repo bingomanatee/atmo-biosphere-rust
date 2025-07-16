@@ -11,13 +11,13 @@ impl MaterialUtils {
     }
 
     /// Convert thermal conduction modifier from scaled f32 back to original f64
-    pub fn thermal_conduction_modifier_as_f64(phase: &MaterialPhase) -> Option<f64> {
-        phase.thermal_conduction_modifier.map(|val| val as f64 / 1000.0)
+    pub fn thermal_conduction_modifier_dimensionless_as_f64(phase: &MaterialPhase) -> f64 {
+        phase.thermal_conduction_modifier_dimensionless as f64 / 1000.0
     }
 
     /// Convert thermal expansivity from scaled f32 back to original f64 (very small values like 1e-05)
-    pub fn thermal_expansivity_as_f64(phase: &MaterialPhase) -> Option<f64> {
-        phase.thermal_expansivity.map(|val| val as f64 / 1e9)
+    pub fn thermal_expansivity_per_k_as_f64(phase: &MaterialPhase) -> f64 {
+        phase.thermal_expansivity_per_k as f64 / 1e9
     }
 
     /// Convert activation volume from scaled f32 back to original f64 (very small values like 1e-05)
@@ -26,13 +26,13 @@ impl MaterialUtils {
     }
 
     /// Convert dynamic viscosity from f64 to f64 (can be very large values like 1e+25)
-    pub fn dynamic_viscosity_as_f64(phase: &MaterialPhase) -> Option<f64> {
-        phase.dynamic_viscosity.map(|val| val as f64)
+    pub fn dynamic_viscosity_pa_s_as_f64(phase: &MaterialPhase) -> f64 {
+        phase.dynamic_viscosity_pa_s
     }
 
     /// Convert bulk modulus from f64 to f64 (large values like 130000000000)
-    pub fn bulk_modulus_pa_as_f64(phase: &MaterialPhase) -> Option<f64> {
-        phase.bulk_modulus_pa.map(|val| val as f64)
+    pub fn bulk_modulus_pa_as_f64(phase: &MaterialPhase) -> f64 {
+        phase.bulk_modulus_pa
     }
 
     /// Get density as f64 for calculations
@@ -118,18 +118,14 @@ impl MaterialUtils {
         if let Some(factor) = Self::gas_interference_factor_as_f64(phase) {
             println!("Gas interference factor: {:.3}", factor);
         }
-        if let Some(modifier) = Self::thermal_conduction_modifier_as_f64(phase) {
-            println!("Thermal conduction modifier: {:.3}", modifier);
-        }
-        if let Some(expansivity) = Self::thermal_expansivity_as_f64(phase) {
-            println!("Thermal expansivity: {:.2e} K⁻¹", expansivity);
-        }
-        if let Some(viscosity) = Self::dynamic_viscosity_as_f64(phase) {
-            println!("Dynamic viscosity: {:.2e} Pa·s", viscosity);
-        }
-        if let Some(modulus) = Self::bulk_modulus_pa_as_f64(phase) {
-            println!("Bulk modulus: {:.2e} Pa", modulus);
-        }
+        let modifier = Self::thermal_conduction_modifier_dimensionless_as_f64(phase);
+        println!("Thermal conduction modifier (dimensionless): {:.3}", modifier);
+        let expansivity = Self::thermal_expansivity_per_k_as_f64(phase);
+        println!("Thermal expansivity: {:.2e} K⁻¹", expansivity);
+        let viscosity = Self::dynamic_viscosity_pa_s_as_f64(phase);
+        println!("Dynamic viscosity: {:.2e} Pa·s", viscosity);
+        let modulus = Self::bulk_modulus_pa_as_f64(phase);
+        println!("Bulk modulus: {:.2e} Pa", modulus);
         if let Some(energy) = Self::activation_energy_j_per_mol_as_f64(phase) {
             println!("Activation energy: {:.0} J/mol", energy);
         }
@@ -158,9 +154,8 @@ mod tests {
             assert!(factor >= 0.0 && factor <= 1.0, "Gas interference factor should be between 0 and 1");
         }
 
-        if let Some(expansivity) = MaterialUtils::thermal_expansivity_as_f64(&phase) {
-            assert!(expansivity > 0.0, "Thermal expansivity should be positive");
-        }
+        let expansivity = MaterialUtils::thermal_expansivity_per_k_as_f64(&phase);
+        assert!(expansivity > 0.0, "Thermal expansivity should be positive");
 
         // Test basic conversions
         let density_f64 = MaterialUtils::density_kg_m3_as_f64(&phase);

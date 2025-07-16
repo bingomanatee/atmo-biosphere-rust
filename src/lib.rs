@@ -1,4 +1,4 @@
-mod sim;
+pub mod sim;
 mod component;
 
 #[cfg(test)]
@@ -12,8 +12,11 @@ mod test_energy_banking;
 
 #[cfg(test)]
 mod test_pressure_phase_transitions;
+
+#[cfg(test)]
+mod test_layer_pressure_calculation;
 mod h3o_utils;
-mod energy_mass;
+pub mod energy_mass;
 pub mod material;
 mod utils;
 mod constants;

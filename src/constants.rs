@@ -1,6 +1,11 @@
 pub const EARTH_RADIUS_KM: i32 = 6372;
 pub const RHO_EARTH: f64 = 4.5; // g/cm³
 
+// Pressure constants
+pub const REFERENCE_PRESSURE_PA: f64 = 101325.0; // 1 Earth atmosphere in Pascals
+pub const MIN_PRESSURE_DIFFERENCE_PA: f64 = -REFERENCE_PRESSURE_PA / 10.0; // 0.1 atmosphere below reference (negative)
+pub const MAX_PRESSURE_DIFFERENCE_PA: f64 = 20e9; // ~20 GPa, pressure at ~600 km depth (ρ * g * h ≈ 3300 * 9.8 * 600000)
+
 // Physical constants for energy calculations (resolution-independent)
 pub const MANTLE_DENSITY_KGM3: f64 = 3300.0;
 pub const SPECIFIC_HEAT_CAPACITY_MANTLE_J_PER_KG_K: f64 = 1000.0; // Specific heat of mantle rock
@@ -11,6 +16,10 @@ pub const KM3_TO_M3: f64 = 1.0e9;
 pub const TO_KELVIN: f64 = 273.15;
 pub const KM_TO_M: f64 = 1000.0;
 pub const KM2_TO_M2: f64 = 1_000_000.0;
+
+// Material property scaling constants
+pub const THERMAL_CONDUCTION_MODIFIER_SCALE: f64 = 1000.0;
+pub const THERMAL_EXPANSIVITY_SCALE: f64 = 1e9;
 pub const DENSITY_TO_TEMP_CONVERSION: f64 =
     MANTLE_DENSITY_KGM3 * DENSITY_TO_TEMP_CONSTANT / SPECIFIC_HEAT_CAPACITY_MANTLE_J_PER_KG_K;
 pub const GEOTHERMAL_GRADIENT_K_PER_KM: f64 = 0.25; // convection-dominated interior

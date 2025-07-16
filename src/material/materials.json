@@ -13,9 +13,9 @@
       "boil_temp": 2900.0,
       "latent_heat_vapor": 2000000.0,
       "gas_interference_factor": 0.8,
-      "thermal_expansivity": 1e-05,
-      "dynamic_viscosity": 1e+21,
-      "thermal_conduction_modifier": 0.9,
+      "thermal_expansivity_per_k": 1e-05,
+      "dynamic_viscosity_pa_s": 1e+21,
+      "thermal_conduction_modifier_dimensionless": 0.9,
       "bulk_modulus_pa": 50000000000.0,
       "activation_energy_j_per_mol": 200000.0,
       "activation_volume_m3_per_mol": 1e-05
@@ -33,9 +33,10 @@
       "boil_temp": 2900.0,
       "latent_heat_vapor": 2000000.0,
       "gas_interference_factor": 0.8,
-      "thermal_expansivity": 2e-05,
-      "dynamic_viscosity": 100.0,
-      "thermal_conduction_modifier": 1.35
+      "thermal_expansivity_per_k": 2e-05,
+      "dynamic_viscosity_pa_s": 100.0,
+      "thermal_conduction_modifier_dimensionless": 1.35,
+      "bulk_modulus_pa": 2000000000.0
     },
     "gas": {
       "density_kg_m3": 0.1,
@@ -50,7 +51,10 @@
       "boil_temp": 2900.0,
       "latent_heat_vapor": 2000000.0,
       "gas_interference_factor": 0.01,
-      "thermal_conduction_modifier": 0.27
+      "thermal_expansivity_per_k": 3e-03,
+      "dynamic_viscosity_pa_s": 1e-05,
+      "thermal_conduction_modifier_dimensionless": 0.27,
+      "bulk_modulus_pa": 100000.0
     },
     "emission_compounds": {
       "CO2": 0.45,
@@ -76,9 +80,9 @@
       "boil_temp": 2600.0,
       "latent_heat_vapor": 1900000.0,
       "gas_interference_factor": 0.7,
-      "thermal_expansivity": 7.5e-06,
-      "dynamic_viscosity": 1e+22,
-      "thermal_conduction_modifier": 0.8,
+      "thermal_expansivity_per_k": 7.5e-06,
+      "dynamic_viscosity_pa_s": 1e+22,
+      "thermal_conduction_modifier_dimensionless": 0.8,
       "bulk_modulus_pa": 45000000000.0,
       "activation_energy_j_per_mol": 220000.0,
       "activation_volume_m3_per_mol": 1.2e-05
@@ -96,9 +100,10 @@
       "boil_temp": 2600.0,
       "latent_heat_vapor": 1900000.0,
       "gas_interference_factor": 0.7,
-      "thermal_expansivity": 1.5e-05,
-      "dynamic_viscosity": 1000.0,
-      "thermal_conduction_modifier": 1.2
+      "thermal_expansivity_per_k": 1.5e-05,
+      "dynamic_viscosity_pa_s": 1000.0,
+      "thermal_conduction_modifier_dimensionless": 1.2,
+      "bulk_modulus_pa": 2000000000.0
     },
     "gas": {
       "density_kg_m3": 0.08,
@@ -114,7 +119,10 @@
       "boil_temp": 3000.0,
       "latent_heat_vapor": 2100000.0,
       "gas_interference_factor": 0.01,
-      "thermal_conduction_modifier": 0.24
+      "thermal_expansivity_per_k": 3e-03,
+      "dynamic_viscosity_pa_s": 1e-05,
+      "thermal_conduction_modifier_dimensionless": 0.24,
+      "bulk_modulus_pa": 100000.0
     },
     "emission_compounds": {
       "H2O": 0.5,
@@ -140,9 +148,9 @@
       "boil_temp": 3000.0,
       "latent_heat_vapor": 2200000.0,
       "gas_interference_factor": 0.9,
-      "thermal_expansivity": 1.2e-05,
-      "dynamic_viscosity": 1e+21,
-      "thermal_conduction_modifier": 1.0,
+      "thermal_expansivity_per_k": 1.2e-05,
+      "dynamic_viscosity_pa_s": 1e+21,
+      "thermal_conduction_modifier_dimensionless": 1.0,
       "bulk_modulus_pa": 130000000000.0,
       "activation_energy_j_per_mol": 240000.0,
       "activation_volume_m3_per_mol": 1.1e-05
@@ -160,9 +168,10 @@
       "boil_temp": 3000.0,
       "latent_heat_vapor": 2200000.0,
       "gas_interference_factor": 0.9,
-      "thermal_expansivity": 2.2e-05,
-      "dynamic_viscosity": 50.0,
-      "thermal_conduction_modifier": 1.5
+      "thermal_expansivity_per_k": 2.2e-05,
+      "dynamic_viscosity_pa_s": 50.0,
+      "thermal_conduction_modifier_dimensionless": 1.5,
+      "bulk_modulus_pa": 2000000000.0
     },
     "gas": {
       "density_kg_m3": 0.05,
@@ -178,7 +187,10 @@
       "boil_temp": 3200.0,
       "latent_heat_vapor": 2200000.0,
       "gas_interference_factor": 0.01,
-      "thermal_conduction_modifier": 0.3
+      "thermal_expansivity_per_k": 3e-03,
+      "dynamic_viscosity_pa_s": 1e-05,
+      "thermal_conduction_modifier_dimensionless": 0.3,
+      "bulk_modulus_pa": 100000.0
     },
     "emission_compounds": {
       "CO2": 0.4,
@@ -204,9 +216,9 @@
       "boil_temp": 4000.0,
       "latent_heat_vapor": 6000000.0,
       "gas_interference_factor": 0.2,
-      "thermal_expansivity": 1.2e-05,
-      "dynamic_viscosity": 1e+25,
-      "thermal_conduction_modifier": 1.2,
+      "thermal_expansivity_per_k": 1.2e-05,
+      "dynamic_viscosity_pa_s": 1e+25,
+      "thermal_conduction_modifier_dimensionless": 1.2,
       "bulk_modulus_pa": 130000000000.0,
       "activation_energy_j_per_mol": 240000.0,
       "activation_volume_m3_per_mol": 1.1e-05
@@ -224,9 +236,10 @@
       "boil_temp": 4000.0,
       "latent_heat_vapor": 6000000.0,
       "gas_interference_factor": 0.2,
-      "thermal_expansivity": 2e-05,
-      "dynamic_viscosity": 0.006,
-      "thermal_conduction_modifier": 1.8
+      "thermal_expansivity_per_k": 2e-05,
+      "dynamic_viscosity_pa_s": 0.006,
+      "thermal_conduction_modifier_dimensionless": 1.8,
+      "bulk_modulus_pa": 2000000000.0
     },
     "gas": {
       "density_kg_m3": 0.02,
@@ -242,7 +255,10 @@
       "boil_temp": 3100.0,
       "latent_heat_vapor": 5400000.0,
       "gas_interference_factor": 0.01,
-      "thermal_conduction_modifier": 0.36
+      "thermal_expansivity_per_k": 3e-03,
+      "dynamic_viscosity_pa_s": 1e-05,
+      "thermal_conduction_modifier_dimensionless": 0.36,
+      "bulk_modulus_pa": 100000.0
     },
     "emission_compounds": {
       "H2": 0.6,
@@ -268,9 +284,9 @@
       "boil_temp": 373.15,
       "latent_heat_vapor": 2260000.0,
       "gas_interference_factor": 0.01,
-      "thermal_expansivity": 5e-05,
-      "dynamic_viscosity": 10000000000000.0,
-      "thermal_conduction_modifier": 0.6,
+      "thermal_expansivity_per_k": 5e-05,
+      "dynamic_viscosity_pa_s": 10000000000000.0,
+      "thermal_conduction_modifier_dimensionless": 0.6,
       "bulk_modulus_pa": 130000000000.0,
       "activation_energy_j_per_mol": 240000.0,
       "activation_volume_m3_per_mol": 1.1e-05
@@ -288,9 +304,10 @@
       "boil_temp": 373.15,
       "latent_heat_vapor": 2260000.0,
       "gas_interference_factor": 0.01,
-      "thermal_expansivity": 0.00021,
-      "dynamic_viscosity": 0.001,
-      "thermal_conduction_modifier": 0.9
+      "thermal_expansivity_per_k": 0.00021,
+      "dynamic_viscosity_pa_s": 0.001,
+      "thermal_conduction_modifier_dimensionless": 0.9,
+      "bulk_modulus_pa": 2200000000.0
     },
     "gas": {
       "density_kg_m3": 0.8,
@@ -305,7 +322,10 @@
       "boil_temp": 373.15,
       "latent_heat_vapor": 2260000.0,
       "gas_interference_factor": 0.01,
-      "thermal_conduction_modifier": 0.03
+      "thermal_expansivity_per_k": 3e-03,
+      "dynamic_viscosity_pa_s": 1e-05,
+      "thermal_conduction_modifier_dimensionless": 0.03,
+      "bulk_modulus_pa": 100000.0
     },
     "emission_compounds": {
       "H2O": 1.0

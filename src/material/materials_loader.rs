@@ -143,8 +143,8 @@ impl MaterialsLoader {
                 })
         };
 
-        // Helper function to get optional f64 value and convert to f64 (for very large values)
-        let get_optional_u64 = |key: &str| -> Option<f64> {
+        // Helper function to get required f64 value (for very large values)
+        let get_required_u64 = |key: &str| -> Result<f64, String> {
             phase_obj.get(key)
                 .and_then(|v| v.as_f64())
                 .and_then(|value| {
@@ -154,6 +154,7 @@ impl MaterialsLoader {
                         None
                     }
                 })
+                .ok_or_else(|| format!("Missing or invalid required field: {}", key))
         };
 
         // Special handling for fractional values that should be scaled
@@ -192,11 +193,11 @@ impl MaterialsLoader {
             // Gas interference factor is fractional (0.0-1.0), scale by 1000 to preserve precision
             gas_interference_factor: get_fractional_as_u32("gas_interference_factor", 1000.0),
             // Thermal conduction modifier is fractional, scale by 1000
-            thermal_conduction_modifier: get_fractional_as_u32("thermal_conduction_modifier", 1000.0),
+            thermal_conduction_modifier_dimensionless: get_fractional_as_u32("thermal_conduction_modifier_dimensionless", 1000.0).expect("thermal_conduction_modifier_dimensionless is required"),
             // Thermal expansivity is very small (e.g., 1e-05), scale by 1e9 to preserve precision
-            thermal_expansivity: get_fractional_as_u32("thermal_expansivity", 1e9),
-            dynamic_viscosity: get_optional_u64("dynamic_viscosity"),
-            bulk_modulus_pa: get_optional_u64("bulk_modulus_pa"),
+            thermal_expansivity_per_k: get_fractional_as_u32("thermal_expansivity_per_k", 1e9).expect("thermal_expansivity_per_k is required"),
+            dynamic_viscosity_pa_s: get_required_u64("dynamic_viscosity_pa_s")?,
+            bulk_modulus_pa: get_required_u64("bulk_modulus_pa")?,
             activation_energy_j_per_mol: get_optional_u32("activation_energy_j_per_mol"),
             activation_volume_m3_per_mol: get_fractional_as_u32("activation_volume_m3_per_mol", 1e9),
             cool_temp_min: get_optional_u32("cool_temp_min"),

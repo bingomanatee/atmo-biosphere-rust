@@ -157,7 +157,7 @@ impl H3Utils {
     /// Estimate the edge length of an H3 cell at a given resolution
     /// This is an approximation based on H3 geometry for Earth coordinates
     /// For non-Earth planets, the caller should scale the result appropriately
-    fn estimate_cell_edge_length_km(resolution: h3o::Resolution, planet_radius_km: f64) -> f64 {
+    pub fn estimate_cell_edge_length_km(resolution: h3o::Resolution, planet_radius_km: f64) -> f64 {
         // H3 edge lengths scale by approximately sqrt(7) between resolutions
         // Base edge length at resolution 0 is approximately 1107.712 km on Earth
         let earth_base_edge_km = 1107.712;

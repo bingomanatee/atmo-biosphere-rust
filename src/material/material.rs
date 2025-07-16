@@ -16,11 +16,11 @@ pub struct MaterialPhase {
     pub boil_temp: f32,
     pub latent_heat_vapor: f32,
     pub gas_interference_factor: Option<f32>,
-    pub thermal_conduction_modifier: Option<f32>,
+    pub thermal_conduction_modifier_dimensionless: f32,
     // Additional fields found in JSON
-    pub thermal_expansivity: Option<f32>,
-    pub dynamic_viscosity: Option<f64>, // This can be very large (e.g., 1e+25)
-    pub bulk_modulus_pa: Option<f64>,   // This is very large (e.g., 130000000000)
+    pub thermal_expansivity_per_k: f32,
+    pub dynamic_viscosity_pa_s: f64, // This can be very large (e.g., 1e+25)
+    pub bulk_modulus_pa: f64,   // This is very large (e.g., 130000000000)
     pub activation_energy_j_per_mol: Option<f32>,
     pub activation_volume_m3_per_mol: Option<f32>,
     pub cool_temp_min: Option<f32>,
@@ -127,27 +127,20 @@ impl MaterialPhase {
 
         // Apply temperature correction to density
         // For most materials: ρ(T) = ρ₀ * (T₀/T) for gases, or ρ₀ * (1 - α*(T-T₀)) for solids/liquids
-        let temperature_corrected_density = if let Some(thermal_expansivity) = self.thermal_expansivity {
+        let temperature_corrected_density = {
             // For solids/liquids: use thermal expansivity
-            let expansivity_f64 = thermal_expansivity as f64 / 1_000_000.0; // Convert from scaled value
+            let expansivity_f64 = self.thermal_expansivity_per_k as f64 / 1_000_000.0; // Convert from scaled value
             let temp_diff = safe_temperature - reference_temperature;
-            let density_factor = 1.0 - expansivity_f64 * temp_diff;
+            let density_factor: f64 = 1.0 - expansivity_f64 * temp_diff;
 
             // Ensure density doesn't become negative or unreasonably high
             let bounded_density_factor = density_factor.clamp(0.1, 10.0);
             base_density * bounded_density_factor
-        } else {
-            // For gases or when thermal expansivity is not available: use ideal gas temperature scaling
-            let density_factor = reference_temperature / safe_temperature;
-
-            // Limit density scaling to reasonable bounds (0.1x to 100x base density)
-            let bounded_density_factor = density_factor.clamp(0.1, 100.0);
-            base_density * bounded_density_factor
         };
 
-        // If bulk modulus is available, account for pressure compressibility
-        if let Some(bulk_modulus) = self.bulk_modulus_pa {
-            let bulk_modulus_f64 = bulk_modulus as f64;
+        // Account for pressure compressibility using bulk modulus
+        {
+            let bulk_modulus_f64 = self.bulk_modulus_pa;
 
             // For compressible materials, use bulk modulus to adjust density
             // Bulk modulus K = -V * (dP/dV) ≈ ρ * (dP/dρ)
@@ -161,9 +154,6 @@ impl MaterialPhase {
             let final_density = temperature_corrected_density * density_correction.max(0.1);
 
             final_density * volume_m3
-        } else {
-            // Use temperature-corrected density only
-            temperature_corrected_density * volume_m3
         }
     }
 
@@ -197,9 +187,9 @@ impl MaterialPhase {
         self.density_kg_m3 as f64
     }
 
-    /// Get bulk modulus as f64 for calculations (if available)
-    pub fn bulk_modulus_as_f64(&self) -> Option<f64> {
-        self.bulk_modulus_pa.map(|b| b as f64)
+    /// Get bulk modulus as f64 for calculations
+    pub fn bulk_modulus_as_f64(&self) -> f64 {
+        self.bulk_modulus_pa
     }
 
     /// Calculate pressure from mass, volume, and temperature using named parameters
@@ -226,19 +216,16 @@ impl MaterialPhase {
         let reference_pressure = 101325.0; // Standard atmospheric pressure
 
         // Apply temperature correction to base density to get expected density at this temperature
-        let temperature_corrected_density = if let Some(thermal_expansivity) = self.thermal_expansivity {
+        let temperature_corrected_density = {
             // For solids/liquids: use thermal expansivity
-            let expansivity_f64 = thermal_expansivity as f64 / 1_000_000.0; // Convert from scaled value
+            let expansivity_f64 = self.thermal_expansivity_per_k as f64 / 1_000_000.0; // Convert from scaled value
             let temp_diff = params.temperature_k - reference_temperature;
             base_density * (1.0 - expansivity_f64 * temp_diff)
-        } else {
-            // For gases or when thermal expansivity is not available: use ideal gas temperature scaling
-            base_density * (reference_temperature / params.temperature_k)
         };
 
-        // If bulk modulus is available, solve for pressure using compressibility
-        if let Some(bulk_modulus) = self.bulk_modulus_pa {
-            let bulk_modulus_f64 = bulk_modulus as f64;
+        // Solve for pressure using compressibility
+        {
+            let bulk_modulus_f64 = self.bulk_modulus_pa;
 
             // From the forward equation: ρ = ρ₀(T) * (1 + (P - P₀)/K)
             // Solving for P: P = P₀ + K * (ρ/ρ₀(T) - 1)
@@ -246,17 +233,6 @@ impl MaterialPhase {
             let pressure_correction = bulk_modulus_f64 * (density_ratio - 1.0);
 
             reference_pressure + pressure_correction
-        } else {
-            // For incompressible materials, pressure doesn't significantly affect density
-            // Use ideal gas law approximation: P = (ρ * R * T) / M
-            // But since we don't have molar mass, we'll use a simplified approach
-            // based on the density difference from expected
-
-            // If actual density is higher than expected, pressure is likely higher
-            let density_ratio = actual_density / temperature_corrected_density;
-
-            // Simple approximation: assume linear relationship for small changes
-            reference_pressure * density_ratio
         }
     }
 

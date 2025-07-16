@@ -10,12 +10,12 @@ use h3o::CellIndex;
 /// the area is estimated as a cylinder with the radius determined by the cell and the planet radius 
 /// 
 pub struct EnergyMassCell {
-    cell_index: CellIndex,
+    pub cell_index: CellIndex,
     energy_joules: f64,
     mass_kg: f64,
     material_name: String,
     pub material_phase: MaterialPhases,
-    pressure_pa: f64,
+    pub pressure_pa: f64,
 
     // Energy bank for phase transitions
     pub phase_transition_energy_bank: f64,
@@ -24,6 +24,13 @@ pub struct EnergyMassCell {
     pub top_km: f64,
     pub bottom_km: f64,
     pub planet_radius_km: f64,
+
+    // Conductivity caching - set to 0.0 when dependent properties change
+    // Units: W/(m·K) - thermal conductivity
+    pub conductivity_w_m_k: f64,
+
+    // Pending energy state for heat transfer calculations
+    pub pending_energy_delta: f64,
 }
 
 pub struct EnergyMassCellProps {
@@ -243,6 +250,8 @@ impl EnergyMassCell {
             pressure_pa: props.pressure_pa,
             phase_transition_energy_bank: 0.0,
             planet_radius_km: props.planet_radius_km,
+            conductivity_w_m_k: 0.0,
+            pending_energy_delta: 0.0,
         };
 
         // Determine the correct phase based on temperature and pressure
@@ -278,6 +287,8 @@ impl EnergyMassCell {
             pressure_pa: props.pressure_pa,
             phase_transition_energy_bank: 0.0,
             planet_radius_km: props.planet_radius_km,
+            conductivity_w_m_k: 0.0, // Will be computed on first access
+            pending_energy_delta: 0.0,
         }
     }
 }
@@ -313,6 +324,7 @@ impl EnergyMass for EnergyMassCell {
 
     fn set_pressure_pa(&mut self, pressure_pa: f64) {
         self.pressure_pa = pressure_pa;
+        self.invalidate_conductivity(); // Invalidate cached conductivity
         self.mass_kg = self
             .material()
             .calculate_mass_from_pressure_volume(MassCalculationParams {
@@ -335,6 +347,7 @@ impl EnergyMass for EnergyMassCell {
         // Update phase if it changed
         if new_phase != self.material_phase {
             self.material_phase = new_phase;
+            self.invalidate_conductivity(); // Invalidate cached conductivity due to phase change
 
             // Recalculate mass for new phase at current pressure/volume/temperature
             let mass_params = MassCalculationParams {
@@ -437,5 +450,13 @@ impl EnergyMass for EnergyMassCell {
             // Normal temperature change (cooling) - no phase transition
             self.energy_joules = (self.energy_joules - energy_joules).max(0.0);
         }
+    }
+}
+
+// Additional methods for conductivity invalidation
+impl EnergyMassCell {
+    /// Invalidate cached conductivity when dependent properties change
+    pub fn invalidate_conductivity(&mut self) {
+        self.conductivity_w_m_k = 0.0;
     }
 }
