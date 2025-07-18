@@ -315,6 +315,100 @@ impl H3Utils {
         )
         .normalize() // Ensure it's exactly on unit sphere
     }
+
+    /// Map a cell to a different resolution (parent/child relationships)
+    /// Returns all cells at target_resolution that correspond to the input cell
+    /// - If target_resolution > source_resolution: returns children (one-to-many)
+    /// - If target_resolution < source_resolution: returns parent (many-to-one)
+    /// - If target_resolution == source_resolution: returns the same cell
+    pub fn map_cell_to_resolution(cell_index: CellIndex, target_resolution: Resolution) -> Vec<CellIndex> {
+        let source_resolution = cell_index.resolution();
+
+        if target_resolution == source_resolution {
+            // Same resolution - return the same cell
+            vec![cell_index]
+        } else if target_resolution > source_resolution {
+            // Target is higher resolution - get children (one-to-many)
+            Self::get_children_at_resolution(cell_index, target_resolution)
+        } else {
+            // Target is lower resolution - get parent (many-to-one)
+            if let Some(parent) = Self::get_parent_at_resolution(cell_index, target_resolution) {
+                vec![parent]
+            } else {
+                vec![] // No valid parent found
+            }
+        }
+    }
+
+    /// Get all children of a cell at a specific target resolution
+    /// Recursively traverses the H3 hierarchy if needed
+    fn get_children_at_resolution(cell_index: CellIndex, target_resolution: Resolution) -> Vec<CellIndex> {
+        let current_resolution = cell_index.resolution();
+
+        if current_resolution == target_resolution {
+            return vec![cell_index];
+        }
+
+        if current_resolution > target_resolution {
+            // Already at higher resolution than target - this shouldn't happen
+            return vec![];
+        }
+
+        // Get immediate children and recurse if needed
+        let mut result = Vec::new();
+        for child in cell_index.children(Resolution::try_from(current_resolution as u8 + 1).unwrap()) {
+            if child.resolution() == target_resolution {
+                result.push(child);
+            } else {
+                result.extend(Self::get_children_at_resolution(child, target_resolution));
+            }
+        }
+
+        result
+    }
+
+    /// Get the parent of a cell at a specific target resolution
+    /// Recursively traverses up the H3 hierarchy if needed
+    fn get_parent_at_resolution(cell_index: CellIndex, target_resolution: Resolution) -> Option<CellIndex> {
+        let current_resolution = cell_index.resolution();
+
+        if current_resolution == target_resolution {
+            return Some(cell_index);
+        }
+
+        if current_resolution < target_resolution {
+            // Already at lower resolution than target - this shouldn't happen
+            return None;
+        }
+
+        // Get immediate parent and recurse if needed
+        if let Some(parent) = cell_index.parent(Resolution::try_from(current_resolution as u8 - 1).unwrap()) {
+            if parent.resolution() == target_resolution {
+                Some(parent)
+            } else {
+                Self::get_parent_at_resolution(parent, target_resolution)
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Get all cells at target_resolution that overlap with the given cell
+    /// This is the main function for resolution-to-resolution mapping in thermal conduction
+    /// Returns a vector of (target_cell, overlap_weight) pairs where overlap_weight represents
+    /// the fraction of area overlap (useful for weighted energy transfer)
+    pub fn get_overlapping_cells_at_resolution(
+        cell_index: CellIndex,
+        target_resolution: Resolution
+    ) -> Vec<(CellIndex, f64)> {
+        let mapped_cells = Self::map_cell_to_resolution(cell_index, target_resolution);
+
+        // For now, assume equal weight distribution
+        // In the future, this could be enhanced with actual area calculations
+        let weight = if mapped_cells.is_empty() { 0.0 } else { 1.0 / mapped_cells.len() as f64 };
+
+        mapped_cells.into_iter().map(|cell| (cell, weight)).collect()
+    }
 }
 
 /// Get the total number of H3 cells at a given resolution
@@ -610,6 +704,47 @@ mod tests {
             let count = H3Utils::cell_count_at_resolution(resolution);
             println!("Resolution {}: {} cells", res, count);
         }
+    }
+
+    #[test]
+    fn test_resolution_mapping() {
+        // Test with a known cell at resolution 2
+        let base_cell = h3o::CellIndex::base_cells()
+            .next()
+            .unwrap()
+            .children(Resolution::Two)
+            .next()
+            .unwrap();
+
+        println!("Testing resolution mapping with base cell: {:?} (res {})", base_cell, base_cell.resolution() as u8);
+
+        // Test mapping to same resolution
+        let same_res = H3Utils::map_cell_to_resolution(base_cell, Resolution::Two);
+        assert_eq!(same_res.len(), 1);
+        assert_eq!(same_res[0], base_cell);
+        println!("Same resolution (2→2): {} cells", same_res.len());
+
+        // Test mapping to higher resolution (children)
+        let higher_res = H3Utils::map_cell_to_resolution(base_cell, Resolution::Three);
+        assert!(!higher_res.is_empty());
+        assert_eq!(higher_res.len(), 7); // Each H3 cell has 7 children
+        println!("Higher resolution (2→3): {} children", higher_res.len());
+
+        // Test mapping to lower resolution (parent)
+        let lower_res = H3Utils::map_cell_to_resolution(base_cell, Resolution::One);
+        assert_eq!(lower_res.len(), 1);
+        println!("Lower resolution (2→1): {} parent", lower_res.len());
+
+        // Test overlapping cells function
+        let overlapping = H3Utils::get_overlapping_cells_at_resolution(base_cell, Resolution::Three);
+        assert_eq!(overlapping.len(), 7);
+
+        // Check that weights sum to 1.0
+        let total_weight: f64 = overlapping.iter().map(|(_, weight)| weight).sum();
+        assert!((total_weight - 1.0).abs() < 1e-10);
+        println!("Overlapping cells (2→3): {} cells, total weight: {:.6}", overlapping.len(), total_weight);
+
+        println!("✅ Resolution mapping test passed");
     }
 
     #[test]

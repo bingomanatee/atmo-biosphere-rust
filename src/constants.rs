@@ -17,6 +17,12 @@ pub const TO_KELVIN: f64 = 273.15;
 pub const KM_TO_M: f64 = 1000.0;
 pub const KM2_TO_M2: f64 = 1_000_000.0;
 
+// Gravity and pressure calculation constants
+pub const GRAVITY_M_S2: f64 = 9.81; // Standard Earth gravity acceleration (m/s²)
+pub const KM2_TO_M2_CONVERSION: f64 = 1e6; // Conversion factor from km² to m² (1 km² = 1e6 m²)
+
+// Note: ATMOSPHERIC_PRESSURE_PA is the same as REFERENCE_PRESSURE_PA defined above
+
 // Material property scaling constants
 pub const THERMAL_CONDUCTION_MODIFIER_SCALE: f64 = 1000.0;
 pub const THERMAL_EXPANSIVITY_SCALE: f64 = 1e9;

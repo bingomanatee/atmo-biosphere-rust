@@ -1,6 +1,8 @@
 use crate::component::SimComponent;
 use std::collections::HashMap;
 use crate::sim::layer_set::{LayerSet, LayerSetParams};
+use crate::energy_mass::energy_mass::EnergyMass;
+use crate::profiling::component_profiler::ComponentProfiler;
 
 /// Thermal gradient configuration using a quadratic model
 #[derive(Clone)]
@@ -11,6 +13,7 @@ pub struct ThermalGradientConfig {
     pub reference_depth_km: f64,           // Depth where gradient reaches deep value (e.g., 200 km)
 }
 
+#[derive(Clone)]
 pub struct SimulationConfig {
     pub steps: u64,
     pub years_per_step: f64,
@@ -26,6 +29,11 @@ pub struct Simulation {
     config: SimulationConfig,
     components: HashMap<&'static str, Box<dyn SimComponent>>,
     pub layer_sets: Vec<LayerSet>,
+    pub profiler: ComponentProfiler,
+    /// Global plume storage - plumes can be created by any component
+    pub plumes: Vec<crate::component::convection_plume_component::ConvectionPlume>,
+    /// Next plume ID for unique identification
+    pub next_plume_id: u64,
 }
 
 pub enum SimulationState {
@@ -46,6 +54,9 @@ impl Simulation {
             config: config,
             components: HashMap::new(),
             layer_sets: Vec::new(),
+            profiler: ComponentProfiler::new(),
+            plumes: Vec::new(),
+            next_plume_id: 1,
         };
         for comp in components.drain(..) {
             sim.register_box(comp);
@@ -99,6 +110,49 @@ impl Simulation {
     pub fn thermal_config(&self) -> &ThermalGradientConfig {
         &self.config.thermal_config
     }
+
+    /// Get years per step for components
+    pub fn years_per_step(&self) -> f64 {
+        self.config.years_per_step
+    }
+
+    /// Create a new plume and add it to the simulation
+    pub fn create_plume(&mut self,
+                       source_layer_index: usize,
+                       source_cell_index: h3o::CellIndex,
+                       position: (f64, f64),
+                       initial_depth_km: f64,
+                       total_energy_joules: f64,
+                       total_mass_kg: f64,
+                       temperature_k: f64,
+                       velocity_km_per_year: f64,
+                       buoyancy_force: f64,
+                       radius_km: f64) -> u64 {
+        let plume_id = self.next_plume_id;
+        self.next_plume_id += 1;
+
+        let plume = crate::component::convection_plume_component::ConvectionPlume::new(
+            plume_id,
+            source_layer_index,
+            source_cell_index,
+            position,
+            initial_depth_km,
+            total_energy_joules,
+            total_mass_kg,
+            temperature_k,
+            velocity_km_per_year,
+            buoyancy_force,
+            radius_km,
+        );
+
+        self.plumes.push(plume);
+        plume_id
+    }
+
+    /// Get the number of active plumes
+    pub fn plume_count(&self) -> usize {
+        self.plumes.len()
+    }
     fn run(&mut self) {
         match self.state {
             SimulationState::Created => {
@@ -130,22 +184,84 @@ impl Simulation {
         self.step * self.config.years_per_step as i64
     }
 
-    fn step(&mut self) {
+    pub fn step(&mut self) {
         let step = self.step;
         let year = self.current_year();
+
+        // Start simulation timing if first step
+        if step == 0 {
+            self.profiler.start_simulation();
+        }
+
         // We need to temporarily take ownership of components to avoid borrowing issues
         let mut components = std::mem::take(&mut self.components);
+        let mut profiler = std::mem::take(&mut self.profiler);
 
-        for (_, comp) in components.iter_mut() {
-            comp.update(self, step, year);
+        // Each component handles its own internal organization with timing
+        for (component_name, comp) in components.iter_mut() {
+            let start = std::time::Instant::now();
+            comp.step(self, step, year);
+            let duration = start.elapsed();
+            profiler.record_method_call(component_name, "step", duration);
         }
 
-        for (_, comp) in components.iter_mut() {
-            comp.report(self, step, year);
-        }
+        // Apply all pending energy changes from components using proper energy methods
+        let start = std::time::Instant::now();
+        self.apply_all_pending_energy_changes();
+        let duration = start.elapsed();
+        profiler.record_method_call("simulation", "apply_pending_energy_changes", duration);
 
-        // Put the components back
+        // Put the components and profiler back
         self.components = components;
+        self.profiler = profiler;
+
+        // Increment step counter
+        self.step += 1;
+    }
+
+    /// Generate performance report for all components
+    pub fn generate_performance_report(&mut self) -> String {
+        self.profiler.end_simulation();
+        self.profiler.generate_report()
+    }
+
+    /// Print performance report to console
+    pub fn print_performance_report(&mut self) {
+        let report = self.generate_performance_report();
+        println!("{}", report);
+    }
+
+    /// Reset profiling data
+    pub fn reset_profiling(&mut self) {
+        self.profiler.reset();
+    }
+
+    /// Get profiler reference for manual timing
+    pub fn profiler_mut(&mut self) -> &mut ComponentProfiler {
+        &mut self.profiler
+    }
+
+    /// Apply all pending energy changes from components using proper energy methods
+    /// This ensures proper material state updates, phase transitions, and energy bank handling
+    fn apply_all_pending_energy_changes(&mut self) {
+        for layer_set in &mut self.layer_sets {
+            for column in layer_set.layers.values_mut() {
+                for cell in &mut column.cells {
+                    let pending_change = cell.pending_energy_change();
+                    if pending_change != 0.0 {
+                        if pending_change > 0.0 {
+                            // Add energy using proper method (handles material state, phase transitions, etc.)
+                            cell.add_energy_joules(pending_change);
+                        } else {
+                            // Remove energy using proper method
+                            cell.remove_energy_joules(-pending_change);
+                        }
+                        // Reset pending changes after applying
+                        cell.reset_pending_energy_changes();
+                    }
+                }
+            }
+        }
     }
 
     /// Calculate accumulated mass per km² from all layers above the specified layer index

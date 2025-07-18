@@ -29,7 +29,7 @@ pub struct EnergyMassCell {
     // Units: W/(m·K) - thermal conductivity
     pub conductivity_w_m_k: f64,
 
-    // Pending energy state for heat transfer calculations
+    // Pending energy changes from all components - accumulated during apply_effects phase
     pub pending_energy_delta: f64,
 }
 
@@ -290,6 +290,38 @@ impl EnergyMassCell {
             conductivity_w_m_k: 0.0, // Will be computed on first access
             pending_energy_delta: 0.0,
         }
+    }
+
+    /// Add energy change to pending delta (components should use this instead of direct modification)
+    pub fn add_pending_energy_change(&mut self, energy_delta_joules: f64) {
+        self.pending_energy_delta += energy_delta_joules;
+    }
+
+    /// Get current pending energy change
+    pub fn pending_energy_change(&self) -> f64 {
+        self.pending_energy_delta
+    }
+
+    /// Apply all pending energy changes and reset pending delta to zero
+    /// This should only be called by the simulation after all components have applied their effects
+    pub fn apply_pending_energy_changes(&mut self) {
+        if self.pending_energy_delta != 0.0 {
+            self.energy_joules += self.pending_energy_delta;
+            self.pending_energy_delta = 0.0;
+            self.conductivity_w_m_k = 0.0; // Invalidate conductivity cache
+        }
+    }
+
+    /// Add or remove mass directly (for plume transport)
+    /// This bypasses normal pressure-volume-temperature calculations
+    pub fn add_mass_kg(&mut self, mass_delta_kg: f64) {
+        self.mass_kg = (self.mass_kg + mass_delta_kg).max(1.0); // Prevent zero/negative mass
+        self.conductivity_w_m_k = 0.0; // Invalidate conductivity cache
+    }
+
+    /// Reset pending energy changes without applying them (for cleanup)
+    pub fn reset_pending_energy_changes(&mut self) {
+        self.pending_energy_delta = 0.0;
     }
 }
 

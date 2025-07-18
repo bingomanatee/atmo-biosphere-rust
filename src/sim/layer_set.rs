@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use crate::material::MaterialPhases;
 use crate::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
 use crate::utils::h3_utils::H3Utils;
+use crate::constants::{GRAVITY_M_S2, REFERENCE_PRESSURE_PA, KM2_TO_M2_CONVERSION};
 use rayon::prelude::*;
 
 pub struct Column {
@@ -112,36 +113,69 @@ impl LayerSet {
         }
     }
 
-    /// Adjust pressures in all cells to account for accumulated mass from layers above
+    /// Adjust pressures in all cells to account for accumulated mass from cells above
     pub fn adjust_pressures_for_accumulated_mass(&mut self, accumulated_mass_per_km2: f64) {
-        // Standard gravity acceleration (m/s²)
-        const GRAVITY_M_S2: f64 = 9.81;
-
-        // Convert accumulated mass per km² to pressure (Pa)
-        // Pressure = mass_per_m² * gravity
-        // mass_per_km² = mass_per_m² * 1e6, so mass_per_m² = mass_per_km² / 1e6
-        let base_pressure_from_above = (accumulated_mass_per_km2 / 1e6) * GRAVITY_M_S2;
-
         for column in self.layers.values_mut() {
             let mut column_accumulated_mass_per_km2 = accumulated_mass_per_km2;
 
             // Process cells from top to bottom within this column
-            for (cell_index, cell) in column.cells.iter_mut().enumerate() {
+            // Use iterative approach to break circular dependency between pressure and mass
+            for cell in column.cells.iter_mut() {
                 // Calculate pressure from all mass above this cell
-                let pressure_from_above = (column_accumulated_mass_per_km2 / 1e6) * GRAVITY_M_S2;
+                // Convert mass per km² to mass per m², then multiply by gravity
+                let pressure_from_above = (column_accumulated_mass_per_km2 / KM2_TO_M2_CONVERSION) * GRAVITY_M_S2;
 
                 // Add atmospheric pressure at surface
-                let atmospheric_pressure = 101325.0; // Pa
-                let total_pressure = atmospheric_pressure + pressure_from_above;
+                let total_pressure = REFERENCE_PRESSURE_PA + pressure_from_above;
 
-                // Update cell pressure
+                // Estimate mass using geological pressure (break circular dependency)
+                let area_km2 = cell.area();
+                let estimated_mass_kg = Self::estimate_cell_mass_at_pressure(cell, total_pressure);
+
+                // Update cell pressure with the estimated mass-based pressure
                 cell.set_pressure_pa(total_pressure);
 
-                // Add this cell's mass to the accumulation for cells below
-                let area_km2 = cell.area();
-                let cell_mass_per_km2 = cell.mass_kg() / area_km2;
+                // Add this cell's estimated mass to the accumulation for cells below
+                let cell_mass_per_km2 = estimated_mass_kg / area_km2;
                 column_accumulated_mass_per_km2 += cell_mass_per_km2;
             }
+        }
+    }
+
+    /// Estimate cell mass at a given pressure without circular dependency
+    fn estimate_cell_mass_at_pressure(cell: &EnergyMassCell, pressure_pa: f64) -> f64 {
+        use crate::material::materials_loader::MaterialsLoader;
+        use crate::material::material::MassCalculationParams;
+        use crate::material::MaterialPhases;
+
+        // Get cell properties
+        let volume_km3 = cell.area() * cell.height_km;
+        let temperature_k = cell.temperature_kelvin();
+
+        // If temperature is NaN or zero, use estimated temperature from depth
+        let safe_temperature_k = if temperature_k.is_nan() || temperature_k <= 0.0 {
+            // Estimate temperature from depth using simple gradient
+            let depth_km = cell.top_km + cell.height_km / 2.0;
+            288.15 + depth_km * 25.0 // Simple 25K/km gradient
+        } else {
+            temperature_k
+        };
+
+        // Get material properties for solid phase (most conservative estimate)
+        // Use a default material name since we can't access the private field
+        let material_name = "basalt"; // Default to basalt for geological simulations
+        if let Ok(material) = MaterialsLoader::get_phase_properties(material_name, MaterialPhases::Solid) {
+            let params = MassCalculationParams {
+                pressure_pa,
+                volume_km3,
+                temperature_k: safe_temperature_k,
+            };
+
+            material.calculate_mass_from_pressure_volume(params)
+        } else {
+            // Fallback: use typical mantle density
+            let typical_density_kg_m3 = 3300.0;
+            volume_km3 * 1e9 * typical_density_kg_m3
         }
     }
 }

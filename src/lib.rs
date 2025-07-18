@@ -1,5 +1,6 @@
 pub mod sim;
-mod component;
+pub mod component;
+pub mod profiling;
 
 #[cfg(test)]
 mod test_pressure_calculation;
