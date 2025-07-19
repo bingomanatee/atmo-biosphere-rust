@@ -345,9 +345,18 @@ impl EnergyMass for EnergyMassCell {
     fn temperature_kelvin(&self) -> f64 {
         // Use active energy + half the banked energy for gradual temperature shift during phase transitions
         let effective_energy = self.energy_joules + (self.phase_transition_energy_bank * 0.5);
-        effective_energy
-            / self.mass_kg()
-            / self.material().specific_heat_capacity_j_per_kg_k as f64
+        let mass = self.mass_kg();
+        let specific_heat = self.material().specific_heat_capacity_j_per_kg_k as f64;
+
+        // Prevent division by zero and ensure minimum realistic temperature
+        if mass <= 0.0 || specific_heat <= 0.0 || effective_energy <= 0.0 {
+            return 1.0; // Minimum 1K to prevent absolute zero issues
+        }
+
+        let calculated_temp = effective_energy / (mass * specific_heat);
+
+        // Ensure temperature is realistic (minimum 1K, maximum based on material)
+        calculated_temp.max(1.0).min(10000.0) // Cap at 10,000K for safety
     }
 
     fn pressure_pa(&self) -> f64 {
@@ -367,7 +376,9 @@ impl EnergyMass for EnergyMassCell {
     }
 
     fn set_energy_joules(&mut self, energy_joules: f64) {
-        self.energy_joules = energy_joules;
+        // Ensure minimum energy to prevent zero/negative energy
+        let min_energy = self.mass_kg * self.material().specific_heat_capacity_j_per_kg_k as f64 * 1.0; // Minimum 1K
+        self.energy_joules = energy_joules.max(min_energy);
     }
 
     fn set_temperature_kelvin(&mut self, temperature_kelvin: f64) {
@@ -406,8 +417,32 @@ impl EnergyMass for EnergyMassCell {
             panic!("cannot add negative energy to energy_mass_cell");
         }
 
-        // Check if we're crossing a phase transition boundary
-        if let Some((_border_energy, bank_energy_delta, main_energy_delta)) = self.check_energy_distribution(energy_joules) {
+        // Apply energy capacity limits based on material properties
+        let material = self.material();
+
+        // Use 10x boil_temp as the energy capacity limit (scientific maximum)
+        let max_temp = material.boil_temp as f64 * 10.0;
+
+        // Calculate current total energy and potential energy after addition
+        let current_energy = self.energy_joules + self.phase_transition_energy_bank;
+        let potential_energy = current_energy + energy_joules;
+        let potential_temp = potential_energy / (self.mass_kg * material.specific_heat_capacity_j_per_kg_k as f64);
+
+        // If adding this energy would exceed the material's temperature capacity, cap it
+        let max_energy = max_temp * self.mass_kg * material.specific_heat_capacity_j_per_kg_k as f64;
+        let capped_energy = if potential_energy > max_energy {
+            (max_energy - current_energy).max(0.0) // Only add energy up to the material's capacity
+        } else {
+            energy_joules // Normal case - no capping needed
+        };
+
+        // Only proceed if there's energy to add after capping
+        if capped_energy <= 0.0 {
+            return; // Cell is already at maximum temperature capacity
+        }
+
+        // Check if we're crossing a phase transition boundary (using capped energy)
+        if let Some((_border_energy, bank_energy_delta, main_energy_delta)) = self.check_energy_distribution(capped_energy) {
             // We're crossing a phase boundary - distribute energy appropriately
             self.energy_joules += main_energy_delta;
             self.phase_transition_energy_bank += bank_energy_delta;
@@ -436,8 +471,8 @@ impl EnergyMass for EnergyMassCell {
                 self.energy_joules += excess_energy;
             }
         } else {
-            // Normal temperature change - no phase transition
-            self.energy_joules += energy_joules;
+            // Normal temperature change - no phase transition (using capped energy)
+            self.energy_joules += capped_energy;
         }
     }
 
@@ -476,11 +511,16 @@ impl EnergyMass for EnergyMassCell {
                 // Continue cooling with excess banked energy
                 let excess_energy = self.phase_transition_energy_bank - latent_heat_needed;
                 self.phase_transition_energy_bank = 0.0;
-                self.energy_joules = (self.energy_joules - excess_energy).max(0.0);
+
+                // Ensure minimum energy (1K equivalent)
+                let min_energy = self.mass_kg * self.material().specific_heat_capacity_j_per_kg_k as f64 * 1.0;
+                self.energy_joules = (self.energy_joules - excess_energy).max(min_energy);
             }
         } else {
             // Normal temperature change (cooling) - no phase transition
-            self.energy_joules = (self.energy_joules - energy_joules).max(0.0);
+            // Ensure minimum energy (1K equivalent)
+            let min_energy = self.mass_kg * self.material().specific_heat_capacity_j_per_kg_k as f64 * 1.0;
+            self.energy_joules = (self.energy_joules - energy_joules).max(min_energy);
         }
     }
 }

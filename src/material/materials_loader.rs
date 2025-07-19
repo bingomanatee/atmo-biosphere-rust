@@ -45,7 +45,7 @@ impl MaterialsLoader {
             .ok_or("Materials JSON root must be an object")?;
         
         for (material_name, material_data) in materials_obj {
-            let material = Self::parse_material(material_data)?;
+            let material = Self::parse_material(&material_name, material_data)?;
             materials.insert(material_name.clone(), material);
         }
         
@@ -53,24 +53,24 @@ impl MaterialsLoader {
     }
 
     /// Parse a single material from JSON
-    fn parse_material(material_data: &Value) -> Result<Material, String> {
+    fn parse_material(material_name: &str, material_data: &Value) -> Result<Material, String> {
         let material_obj = material_data.as_object()
             .ok_or("Material data must be an object")?;
         
         let solid = if let Some(solid_data) = material_obj.get("solid") {
-            Some(Self::parse_material_phase(solid_data)?)
+            Some(Self::parse_material_phase(material_name, solid_data)?)
         } else {
             None
         };
-        
+
         let liquid = if let Some(liquid_data) = material_obj.get("liquid") {
-            Some(Self::parse_material_phase(liquid_data)?)
+            Some(Self::parse_material_phase(material_name, liquid_data)?)
         } else {
             None
         };
-        
+
         let gas = if let Some(gas_data) = material_obj.get("gas") {
-            Some(Self::parse_material_phase(gas_data)?)
+            Some(Self::parse_material_phase(material_name, gas_data)?)
         } else {
             None
         };
@@ -90,7 +90,7 @@ impl MaterialsLoader {
     }
 
     /// Parse a material phase from JSON
-    fn parse_material_phase(phase_data: &Value) -> Result<MaterialPhase, String> {
+    fn parse_material_phase(material_name: &str, phase_data: &Value) -> Result<MaterialPhase, String> {
         let phase_obj = phase_data.as_object()
             .ok_or("Material phase data must be an object")?;
 
@@ -172,6 +172,7 @@ impl MaterialsLoader {
         };
 
         Ok(MaterialPhase {
+            name: material_name.to_string(),
             density_kg_m3: get_required_u32("density_kg_m3")?,
             specific_heat_capacity_j_per_kg_k: get_required_u32("specific_heat_capacity_j_per_kg_k")?,
             thermal_conductivity_w_m_k: get_required_u32("thermal_conductivity_w_m_k")?,
@@ -200,8 +201,7 @@ impl MaterialsLoader {
             bulk_modulus_pa: get_required_u64("bulk_modulus_pa")?,
             activation_energy_j_per_mol: get_optional_u32("activation_energy_j_per_mol"),
             activation_volume_m3_per_mol: get_fractional_as_u32("activation_volume_m3_per_mol", 1e9),
-            cool_temp_min: get_optional_u32("cool_temp_min"),
-            cool_temp_max: get_optional_u32("cool_temp_max"),
+            // cool_temp fields removed - using boil_temp as maximum
         })
     }
 

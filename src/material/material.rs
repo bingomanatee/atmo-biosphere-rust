@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MaterialPhase {
+    pub name: String, // Material name for easy access
     pub density_kg_m3: f32,
     pub specific_heat_capacity_j_per_kg_k: f32,
     pub thermal_conductivity_w_m_k: f32,
@@ -23,8 +24,7 @@ pub struct MaterialPhase {
     pub bulk_modulus_pa: f64,   // This is very large (e.g., 130000000000)
     pub activation_energy_j_per_mol: Option<f32>,
     pub activation_volume_m3_per_mol: Option<f32>,
-    pub cool_temp_min: Option<f32>,
-    pub cool_temp_max: Option<f32>,
+
 }
 
 /// Parameters for mass calculation from pressure and volume

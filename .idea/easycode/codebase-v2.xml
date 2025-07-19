@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="com.obiscr.chatgpt.settings.EasyCodeState">
+    <option name="projectFiles" value="$PROJECT_DIR$/src/component/component_trait.rs;/Users/davidedelhart/Documents/rust/atmo-biosphere-rust/src/component/mod.rs;/Users/davidedelhart/Documents/rust/atmo-biosphere-rust/src/sim/mod.rs;/Users/davidedelhart/Documents/rust/atmo-biosphere-rust/src/sim/simulation.rs;/Users/davidedelhart/Documents/rust/atmo-biosphere-rust/src/lib.rs" />
+  </component>
+</project>

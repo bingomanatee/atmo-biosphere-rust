@@ -1,0 +1,695 @@
+/Users/davidedelhart/.cargo/bin/cargo run --color=always --package atmo-asth-rust --example global_thermal_radiance_with_heat_map --profile dev
+warning: unnecessary parentheses around assigned value
+   --> src/h3_utils.rs:164:28
+    |
+164 |         let scale_factor = (planet_radius_km / EARTH_RADIUS_KM);
+    |                            ^                                  ^
+    |
+    = note: `#[warn(unused_parens)]` on by default
+help: remove these parentheses
+    |
+164 -         let scale_factor = (planet_radius_km / EARTH_RADIUS_KM);
+164 +         let scale_factor = planet_radius_km / EARTH_RADIUS_KM;
+    |
+
+warning: unused import: `std::sync::Mutex`
+ --> src/material_composite.rs:5:5
+  |
+5 | use std::sync::Mutex;
+  |     ^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `rayon::prelude`
+ --> src/sim_op/surface_energy_init_op.rs:8:5
+  |
+8 | use rayon::prelude::*;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `rayon::prelude`
+ --> src/sim_op/space_radiation_op.rs:8:5
+  |
+8 | use rayon::prelude::*;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused variable: `volume_km3`
+  --> src/global_thermal/thermal_layer.rs:46:13
+   |
+46 |         let volume_km3 = surface_area_km2 * height_km;
+   |             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_volume_km3`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `energy_joules`
+  --> src/global_thermal/thermal_layer.rs:82:13
+   |
+82 |         let energy_joules = layer_total_mass_kg * 1004.0 * atmospheric_temp_k; // Air specific heat: 1004 J/kg·K
+   |             ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_energy_joules`
+
+warning: variable `temp_current_depth` is assigned to, but never used
+   --> src/global_thermal/sim_cell.rs:140:17
+    |
+140 |         let mut temp_current_depth = current_depth;
+    |                 ^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider using `_temp_current_depth` instead
+
+warning: unused variable: `reference_density`
+   --> src/global_thermal/heat_plume.rs:111:13
+    |
+111 |         let reference_density = 3200.0; // kg/m³
+    |             ^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reference_density`
+
+warning: unused variable: `mass_kg`
+   --> src/global_thermal/heat_plume.rs:106:56
+    |
+106 |     fn calculate_buoyancy_velocity(temperature_k: f64, mass_kg: f64) -> f64 {
+    |                                                        ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_mass_kg`
+
+warning: unused variable: `height_m`
+   --> src/global_thermal/thermal_expansion.rs:168:13
+    |
+168 |         let height_m = layer.height_km * 1000.0; // Convert to m
+    |             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_height_m`
+
+warning: unused variable: `center_point_3d`
+   --> src/h3_utils.rs:208:13
+    |
+208 |         let center_point_3d = Self::cell_to_3d_point(center_cell, planet_radius_km);
+    |             ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_center_point_3d`
+
+warning: unused variable: `cell_index`
+   --> src/sim/radiance.rs:479:9
+    |
+479 |         cell_index: CellIndex,
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_cell_index`
+
+warning: variable `total_neighbor_applications` is assigned to, but never used
+   --> src/sim/radiance.rs:591:17
+    |
+591 |         let mut total_neighbor_applications = 0;
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider using `_total_neighbor_applications` instead
+
+warning: unused variable: `immediate_neighbors`
+   --> src/sim/radiance.rs:599:21
+    |
+599 |                 let immediate_neighbors: std::collections::HashSet<CellIndex> = neighbors.iter().cloned().collect();
+    |                     ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_immediate_neighbors`
+
+warning: unused variable: `iteration`
+    --> src/h3_graphics.rs:1877:13
+     |
+1877 |         for iteration in 1..=5 {
+     |             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_iteration`
+
+warning: unused variable: `cell_index`
+   --> src/sim_op/radiance_op.rs:281:61
+    |
+281 |     fn apply_energy_to_foundry_layer_with_plumes(&mut self, cell_index: CellIndex, cell: &mut SimCell, energy: f64) {
+    |                                                             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_cell_index`
+
+warning: unused variable: `current_year`
+   --> src/sim_op/radiance_op.rs:834:9
+    |
+834 |         current_year: f64,
+    |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_current_year`
+
+warning: unused variable: `neighbors`
+   --> src/sim_op/radiance_op.rs:835:9
+    |
+835 |         neighbors: &[CellIndex],
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_neighbors`
+
+warning: variable `active_inflows` is assigned to, but never used
+   --> src/sim_op/radiance_op.rs:974:17
+    |
+974 |         let mut active_inflows = 0;
+    |                 ^^^^^^^^^^^^^^
+    |
+    = note: consider using `_active_inflows` instead
+
+warning: variable `inactive_inflows` is assigned to, but never used
+   --> src/sim_op/radiance_op.rs:975:17
+    |
+975 |         let mut inactive_inflows = 0;
+    |                 ^^^^^^^^^^^^^^^^
+    |
+    = note: consider using `_inactive_inflows` instead
+
+warning: unused variable: `sim`
+   --> src/sim_op/surface_energy_init_op.rs:137:30
+    |
+137 |     fn update_sim(&mut self, sim: &mut Simulation) {
+    |                              ^^^ help: if this is intentional, prefix it with an underscore: `_sim`
+
+warning: variable `actual_total_outflow` is assigned to, but never used
+   --> src/sim_op/thermal_conduction_op.rs:507:21
+    |
+507 |             let mut actual_total_outflow = 0.0;
+    |                     ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider using `_actual_total_outflow` instead
+
+warning: unused variable: `max_layers`
+   --> src/sim_op/thermal_conduction_op.rs:579:13
+    |
+579 |         let max_layers = if let Some(first_cell) = sim.cells.values().next() {
+    |             ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_max_layers`
+
+warning: constant `BULK_MODULUS_PA` is never used
+  --> src/global_thermal/thermal_layer.rs:38:7
+   |
+38 | const BULK_MODULUS_PA: f64 = 1e11; // 100 GPa for silicate materials
+   |       ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: method `calculate_neighbor_flow_effects` is never used
+   --> src/sim/radiance.rs:776:8
+    |
+161 | impl RadianceSystem {
+    | ------------------- method in this implementation
+...
+776 |     fn calculate_neighbor_flow_effects(&self, _cell_index: CellIndex, _current_year: f64) -> f64 {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `emission_compounds` is never read
+  --> src/material_composite.rs:23:5
+   |
+19 | struct MaterialPhaseData {
+   |        ----------------- field in this struct
+...
+23 |     emission_compounds: Option<std::collections::HashMap<String, f64>>,
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: methods `check_and_complete_forward_transition`, `check_and_complete_reverse_transition`, `is_in_transition_range`, and `calculate_transition_fraction` are never used
+   --> src/energy_mass_composite.rs:548:8
+    |
+348 | impl StandardEnergyMassComposite {
+    | -------------------------------- methods in this implementation
+...
+548 |     fn check_and_complete_forward_transition(&mut self, mass_kg: f64) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+587 |     fn check_and_complete_reverse_transition(&mut self, mass_kg: f64) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+626 |     fn is_in_transition_range(&self) -> bool {
+    |        ^^^^^^^^^^^^^^^^^^^^^^
+...
+636 |     fn calculate_transition_fraction(&self) -> f64 {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `handle_transition_logic`, `chop_and_bank_excess_energy`, `check_phase_transition`, and `calculate_energy_for_temperature` are never used
+    --> src/energy_mass_composite.rs:1208:8
+     |
+1206 | impl StandardEnergyMassComposite {
+     | -------------------------------- methods in this implementation
+1207 |     /// Handle transition logic with "chop and choke" approach
+1208 |     fn handle_transition_logic(&mut self) {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^
+...
+1266 |     fn chop_and_bank_excess_energy(&mut self, current_temp: f64, melting_point: f64) {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+1281 |     fn check_phase_transition(&mut self, target_phase: MaterialPhase) {
+     |        ^^^^^^^^^^^^^^^^^^^^^^
+...
+1313 |     fn calculate_energy_for_temperature(&self, target_temp: f64) -> f64 {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `energy_at_kelvin` and `put_bank_into_energy` are never used
+  --> src/phase_transition.rs:15:8
+   |
+5  | impl StandardEnergyMassComposite {
+   | -------------------------------- methods in this implementation
+...
+15 |     fn energy_at_kelvin(&self, kelvin: f64) -> f64 {
+   |        ^^^^^^^^^^^^^^^^
+...
+83 |     fn put_bank_into_energy(&mut self) {
+   |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `project_3d_orthographic` and `fill_polygon` are never used
+   --> src/h3_graphics.rs:229:8
+    |
+158 | impl H3GraphicsGenerator {
+    | ------------------------ methods in this implementation
+...
+229 |     fn project_3d_orthographic(&self, point: &Point3D, center_lon: f64, center_lat: f64) -> Option<(i32, i32)> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+...
+626 |     fn fill_polygon(&self, image: &mut RgbImage, points: &[Point<i32>], color: Rgb<u8>) {
+    |        ^^^^^^^^^^^^
+
+warning: methods `build_neighbor_cache` and `propagate_hotspot_energy` are never used
+    --> src/h3_graphics.rs:1818:8
+     |
+1776 | impl H3GraphicsGenerator {
+     | ------------------------ methods in this implementation
+...
+1818 |     fn build_neighbor_cache(&self) -> Vec<Vec<usize>> {
+     |        ^^^^^^^^^^^^^^^^^^^^
+...
+1853 |     fn propagate_hotspot_energy(
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `project_3d_orthographic`, `get_cell_boundary_paths_with_wraparound`, `get_cell_boundary_paths_3d`, and `draw_cell_with_color` are never used
+   --> src/h3o_png.rs:228:8
+    |
+152 | impl H3GraphicsGenerator {
+    | ------------------------ methods in this implementation
+...
+228 |     fn project_3d_orthographic(&self, point: &Point3D, center_lon: f64, center_lat: f64) -> Option<(i32, i32)> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+...
+873 |     fn get_cell_boundary_paths_with_wraparound(&self) -> Vec<Vec<(i32, i32)>> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+879 |     fn get_cell_boundary_paths_3d(&self) -> Vec<Vec<(i32, i32)>> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+912 |     fn draw_cell_with_color(&self, image: &mut RgbImage, cell: &H3CellGraphics, color: Rgb<u8>) {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `name`, `chemical_formula`, `viscosity_pa_s`, `absorption_bands_um`, and `atmospheric_lifetime_years` are never read
+  --> src/sim_op/atmospheric_generation_op.rs:20:9
+   |
+19 | struct CompoundProperties {
+   |        ------------------ fields in this struct
+20 |     pub name: String,
+   |         ^^^^
+21 |     pub chemical_formula: String,
+   |         ^^^^^^^^^^^^^^^^
+...
+26 |     pub viscosity_pa_s: f64,
+   |         ^^^^^^^^^^^^^^
+27 |     pub greenhouse_potential: f64,
+28 |     pub absorption_bands_um: Vec<f64>,
+   |         ^^^^^^^^^^^^^^^^^^^
+29 |     pub atmospheric_lifetime_years: f64,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `CompoundProperties` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `factor` and `last_updated_step` are never read
+   --> src/sim_op/atmospheric_generation_op.rs:115:9
+    |
+114 | struct CrystallizationCache {
+    |        -------------------- fields in this struct
+115 |     pub factor: f64,
+    |         ^^^^^^
+116 |     pub last_updated_step: usize,
+    |         ^^^^^^^^^^^^^^^^^
+    |
+    = note: `CrystallizationCache` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `crystallization_cache` is never read
+   --> src/sim_op/atmospheric_generation_op.rs:161:5
+    |
+135 | pub struct AtmosphericGenerationOp {
+    |            ----------------------- field in this struct
+...
+161 |     crystallization_cache: HashMap<(CellIndex, u32), CrystallizationCache>, // Cache crystallization factors by cell/depth
+    |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: multiple methods are never used
+    --> src/sim_op/atmospheric_generation_op.rs:576:8
+     |
+236  | impl AtmosphericGenerationOp {
+     | ---------------------------- methods in this implementation
+...
+576  |     fn get_cached_crystallization_factor(
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+603  |     fn detect_melting_events(&mut self, sim: &Simulation) {
+     |        ^^^^^^^^^^^^^^^^^^^^^
+...
+657  |     fn generate_atmosphere_from_melting_events(&mut self, sim: &mut Simulation) -> f64 {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+745  |     fn generate_atmospheric_compounds(&self, material_type: &MaterialCompositeType, total_mass_kg: f64) -> Vec<AtmosphericCompound> {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+764  |     fn calculate_crystallization_factor(&self, sim: &Simulation, cell_id: &CellIndex, melting_depth_km: f64) -> f64 {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+937  |     fn redistribute_global_atmosphere_to_cells(&mut self, sim: &mut Simulation) -> f64 {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+1023 |     fn distribute_outgassed_mass_to_atmosphere(&mut self, cell: &mut crate::global_thermal::sim_cell::SimCell, outgassed_mass: f64) {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+1216 |     fn process_outgassing(&mut self, cell: &mut crate::global_thermal::sim_cell::SimCell) -> f64 {
+     |        ^^^^^^^^^^^^^^^^^^
+...
+1292 |     fn calculate_outgassing_rate(&self, material_type: &MaterialCompositeType) -> f64 {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+1303 |     fn add_atmospheric_material(&mut self, cell: &mut crate::global_thermal::sim_cell::SimCell,
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^
+...
+1360 |     fn redistribute_atmosphere(&mut self, cell: &mut crate::global_thermal::sim_cell::SimCell) -> f64 {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^
+...
+1454 |     fn globally_redistribute_atmosphere(&mut self, sim: &mut Simulation) -> f64 {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `half_peak`, `peak`, `peak_plus_half`, and `mid_decline` are never read
+  --> src/sim_op/radiance_op.rs:21:9
+   |
+20 | struct HotspotEnergyCache {
+   |        ------------------ fields in this struct
+21 |     pub half_peak: f64,      // Energy at 1/2 peak
+   |         ^^^^^^^^^
+22 |     pub peak: f64,           // Energy at peak
+   |         ^^^^
+23 |     pub peak_plus_half: f64, // Energy at peak + 1/2 peak
+   |         ^^^^^^^^^^^^^^
+24 |     pub mid_decline: f64,    // Energy halfway between peak+1/2 and end
+   |         ^^^^^^^^^^^
+   |
+   = note: `HotspotEnergyCache` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `hotspot_energy_cache` and `energy_accumulator` are never read
+  --> src/sim_op/radiance_op.rs:80:5
+   |
+73 | pub struct RadianceOp {
+   |            ---------- fields in this struct
+...
+80 |     hotspot_energy_cache: HashMap<CellIndex, HotspotEnergyCache>,
+   |     ^^^^^^^^^^^^^^^^^^^^
+81 |     energy_accumulator: f64,  // Accumulate energy for 100-year batches
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: multiple methods are never used
+   --> src/sim_op/radiance_op.rs:166:8
+    |
+88  | impl RadianceOp {
+    | --------------- methods in this implementation
+...
+166 |     fn cache_hotspot_energy(&mut self, cell_index: CellIndex, surface_area_km2: f64, time_years: f64) {
+    |        ^^^^^^^^^^^^^^^^^^^^
+...
+296 |     fn apply_hotspot_focused_legacy(&mut self, cells: &mut HashMap<CellIndex, SimCell>, time_years: f64, current_year: f64) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+312 |     fn apply_base_energy_to_cell(&self, cell_index: CellIndex, cell: &mut SimCell, time_years: f64) -> f64 {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+343 |     fn apply_base_energy_to_cell_with_plumes(&mut self, cell_index: CellIndex, cell: &mut SimCell, time_years: f64) -> f64 {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+460 |     fn apply_hotspot_energy_area_based(&mut self, cells: &mut HashMap<CellIndex, SimCell>, time_years: f64, current_year: f64, planet_rad...
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+530 |     fn apply_hotspot_energy(&mut self, cells: &mut HashMap<CellIndex, SimCell>, time_years: f64, current_year: f64) {
+    |        ^^^^^^^^^^^^^^^^^^^^
+...
+701 |     fn apply_to_cell(
+    |        ^^^^^^^^^^^^^
+...
+776 |     fn apply_to_cell_cached(
+    |        ^^^^^^^^^^^^^^^^^^^^
+...
+829 |     fn calculate_radiance_system_energy_cached(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+854 |     fn calculate_radiance_system_energy(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+899 |     fn log_layer_14_energy_flow(&self, cell_index: CellIndex, cell: &SimCell) {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `enforce_foundry_temperature` is never used
+  --> src/sim_op/surface_energy_init_op.rs:80:8
+   |
+48 | impl SurfaceEnergyInitOp {
+   | ------------------------ method in this implementation
+...
+80 |     fn enforce_foundry_temperature(&self, sim: &mut Simulation) {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: fields `lateral_neighbors` and `cell_distances` are never read
+  --> src/sim_op/thermal_conduction_op.rs:61:5
+   |
+59 | struct NeighborTopology {
+   |        ---------------- fields in this struct
+60 |     /// Map from cell index to its H3 neighbors
+61 |     lateral_neighbors: HashMap<CellIndex, Vec<CellIndex>>,
+   |     ^^^^^^^^^^^^^^^^^
+62 |     /// Map from cell pair to distance in meters
+63 |     cell_distances: HashMap<(CellIndex, CellIndex), f64>,
+   |     ^^^^^^^^^^^^^^
+   |
+   = note: `NeighborTopology` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: methods `get_or_compute_neighbors` and `get_or_compute_distance` are never used
+  --> src/sim_op/thermal_conduction_op.rs:74:8
+   |
+66 | impl NeighborTopology {
+   | --------------------- methods in this implementation
+...
+74 |     fn get_or_compute_neighbors(&mut self, cell_index: CellIndex) -> &Vec<CellIndex> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^
+...
+80 |     fn get_or_compute_distance(
+   |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `LayerGeometry` is never constructed
+   --> src/sim_op/thermal_conduction_op.rs:100:8
+    |
+100 | struct LayerGeometry {
+    |        ^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+   --> src/sim_op/thermal_conduction_op.rs:112:8
+    |
+111 | impl LayerGeometry {
+    | ------------------ associated function in this implementation
+112 |     fn new(resolution: h3o::Resolution, planet_radius_km: f64) -> Self {
+    |        ^^^
+
+warning: field `apply_during_simulation` is never read
+   --> src/sim_op/thermal_conduction_op.rs:139:5
+    |
+136 | pub struct ThermalConductionOp {
+    |            ------------------- field in this struct
+...
+139 |     apply_during_simulation: bool,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `calculate_cell_radius_km` and `calculate_fourier_transfer_between_neighbors` are never used
+   --> src/sim_op/thermal_conduction_op.rs:204:8
+    |
+169 | impl ThermalConductionOp {
+    | ------------------------ methods in this implementation
+...
+204 |     fn calculate_cell_radius_km(&self, surface_area_km2: f64) -> f64 {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+...
+293 |     fn calculate_fourier_transfer_between_neighbors(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `DirectionalHeatFlowCacheKey` is never constructed
+  --> src/fourier_thermal_transfer.rs:31:8
+   |
+31 | struct DirectionalHeatFlowCacheKey {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `DensityAdjustedConductivityCacheKey` is never constructed
+  --> src/fourier_thermal_transfer.rs:42:8
+   |
+42 | struct DensityAdjustedConductivityCacheKey {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `thermal_expansion_calculator` is never read
+  --> src/fourier_thermal_transfer.rs:51:5
+   |
+49 | pub struct FourierThermalTransfer {
+   |            ---------------------- field in this struct
+50 |     pub years: f64,
+51 |     thermal_expansion_calculator: ThermalExpansionCalculator,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `FourierThermalTransfer` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: associated items `calculate_density_adjusted_conductivity_uncached`, `create_directional_heat_flow_cache_key`, and `calculate_thermal_pressure_factor_uncached` are never used
+   --> src/fourier_thermal_transfer.rs:111:8
+    |
+54  | impl FourierThermalTransfer {
+    | --------------------------- associated items in this implementation
+...
+111 |     fn calculate_density_adjusted_conductivity_uncached(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+167 |     fn create_directional_heat_flow_cache_key(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+185 |     fn calculate_thermal_pressure_factor_uncached(&self, temp_diff_abs: f64) -> f64 {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `FourierThermalTransferFast` is never constructed
+ --> src/fast_fourier_transfer.rs:2:8
+  |
+2 | struct FourierThermalTransferFast {
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+ --> src/fast_fourier_transfer.rs:7:12
+  |
+6 | impl FourierThermalTransferFast {
+  | ------------------------------- associated function in this implementation
+7 |     pub fn new(time_years: f64) -> Self {
+  |            ^^^
+
+warning: `atmo-asth-rust` (lib) generated 52 warnings (run `cargo fix --lib -p atmo-asth-rust` to apply 2 suggestions)
+warning: unused import: `EnergyMassComposite`
+ --> examples/global_thermal_radiance_with_heat_map.rs:7:45
+  |
+7 | use atmo_asth_rust::energy_mass_composite::{EnergyMassComposite, MaterialCompositeType};
+  |                                             ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `SimOp`
+  --> examples/global_thermal_radiance_with_heat_map.rs:18:30
+   |
+18 | use atmo_asth_rust::sim_op::{SimOp, SimOpHandle};
+   |                              ^^^^^
+
+warning: unused variable: `i`
+   --> examples/export_heat_map.rs:312:14
+    |
+312 |         for (i, (cell_index, energy_density)) in
+    |              ^ help: if this is intentional, prefix it with an underscore: `_i`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: methods `create_energy_based_radiance_sources` and `create_test_radiance_sources` are never used
+   --> examples/export_heat_map.rs:293:8
+    |
+99  | impl ThermalHeatMapExportOp {
+    | --------------------------- methods in this implementation
+...
+293 |     fn create_energy_based_radiance_sources(&self, sim: &Simulation) -> Vec<RadianceSource> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+332 |     fn create_test_radiance_sources(&self, sim: &Simulation) -> Vec<RadianceSource> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` on by default
+
+warning: associated function `new` is never used
+  --> examples/radiance_visualization_op.rs:20:12
+   |
+19 | impl RadianceVisualizationOp {
+   | ---------------------------- associated function in this implementation
+20 |     pub fn new(resolution: Resolution, points_per_degree: u32, export_every_step: bool) -> Self {
+   |            ^^^
+
+warning: `atmo-asth-rust` (example "global_thermal_radiance_with_heat_map") generated 5 warnings (run `cargo fix --example "global_thermal_radiance_with_heat_map"` to apply 2 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running `target/debug/examples/global_thermal_radiance_with_heat_map`
+Initializing sustainable thermal features...
+Generating realistic thermal features with geological timescales...
+Generating 20 random thermal outflows...
+Generated 126 total inflows (94 standard hotspots, 32 major plumes) and 20 outflows with geological timescales
+Note: Doubled populations to account for exponential cooling - most features operate at low intensity for majority of lifetime
+Initialized 126 inflows and 20 outflows with sustainable lifecycle management
+🔥 RadianceOp: Parallel cached perlin values for 5882 cells
+Loaded 5882 H3 cells at resolution Two
+📊 Temperature reporting initialized (every 10.0% of simulation)
+🌡️  Initial Temperature Report:
+   - Average surface temperature: 0.0K (-273.1°C)
+   - Global average temperature: 0.0K (-273.1°C)
+   - Temperature range: 0.0K to 0.0K
+   - Total layers: 99994
+🔬 Initial Cell Details (Cell 90-637777777777777 (82b59ffffffffff)):
+   Surface Area: 8.53e4 km²
+   Planet: Earth
+   Total layers in this cell: 17
+
+   Lyr  Depth Range   Height        Phase     Material  Temp(K) Temp(°C)     Mass(kg)  Volume(km³) Density(kg/m³)  Opacity
+   --- ------------ -------- --- -------- ------------ -------- -------- ------------ ------------ ---------- --------
+   ☁️0 -80.0--60.0km     20.0   🧊    Solid          Air        0     -273      6.97e13       1.71e6          0 0.000000
+   ☁️1 -60.0--40.0km     20.0   🧊    Solid          Air        0     -273      7.92e13       1.71e6          0 0.000000
+   ☁️2 -40.0--20.0km     20.0   🧊    Solid          Air        0     -273      9.00e13       1.71e6          0 0.000000
+   ☁️3  -20.0-0.0km     20.0   🧊    Solid          Air        0     -273      1.02e14       1.71e6          0 0.000000
+    🗻4   0.0-10.0km     10.0   🧊    Solid     Silicate        0     -273      2.73e18       8.52e5       3203 0.000000
+    🗻5  10.0-20.0km     10.0   🧊    Solid     Silicate        0     -273      2.73e18       8.50e5       3210 0.000000
+    🗻6  20.0-34.9km     14.9   🧊    Solid     Silicate        0     -273      4.09e18       1.27e6       3218 0.000000
+    🗻7  34.9-49.8km     14.9   🧊    Solid     Silicate        0     -273      4.09e18       1.27e6       3227 0.000000
+    🗻8  49.8-69.5km     19.8   🧊    Solid     Silicate        0     -273      5.46e18       1.69e6       3239 0.000000
+    🗻9  69.5-89.2km     19.7   🧊    Solid     Silicate        0     -273      5.46e18       1.68e6       3252 0.000000
+   🗻10 89.2-108.8km     19.6   🧊    Solid     Silicate        0     -273      5.46e18       1.67e6       3264 0.000000
+   🗻11 108.8-133.2km     24.4   🧊    Solid     Silicate        0     -273      6.82e18       2.08e6       3279 0.000000
+   🗻12 133.2-157.5km     24.3   🧊    Solid     Silicate        0     -273      6.82e18       2.07e6       3295 0.000000
+   🗻13 157.5-181.6km     24.2   🧊    Solid     Silicate        0     -273      6.82e18       2.06e6       3311 0.000000
+   🗻14 181.6-370.8km    189.1   🧊    Solid     Silicate        0     -273      5.46e19       1.61e7       3384 0.000000
+   🗻15 370.8-553.0km    182.2   🧊    Solid     Silicate        0     -273      5.46e19       1.55e7       3512 0.000000
+   🗻16 553.0-728.8km    175.8   🧊    Solid     Silicate        0     -273      5.46e19       1.50e7       3641 0.000000
+step 1 of 500: 0% progress
+step 50 of 500: 10% progress
+step 100 of 500: 20% progress
+step 150 of 500: 30% progress
+step 200 of 500: 40% progress
+step 250 of 500: 50% progress
+step 300 of 500: 60% progress
+step 350 of 500: 70% progress
+step 400 of 500: 80% progress
+step 450 of 500: 90% progress
+step 500 of 500: 100% progress
+🏁 Final Temperature Report:
+   - Final average surface temperature: 0.0K (-273.1°C)
+   - Final global average temperature: 4049.3K (3776.2°C)
+   - Final temperature range: 0.0K to 586693.2K
+   - Total layers: 99994
+🔬 Final Cell Details (Cell 90-637777777777777 (82b59ffffffffff)):
+   Surface Area: 8.53e4 km²
+   Planet: Earth
+   Total layers in this cell: 17
+
+   Lyr  Depth Range   Height        Phase     Material  Temp(K) Temp(°C)     Mass(kg)  Volume(km³) Density(kg/m³)  Opacity
+   --- ------------ -------- --- -------- ------------ -------- -------- ------------ ------------ ---------- --------
+   ☁️0 -80.0--60.0km     20.0   🧊    Solid          Air        0     -273      6.97e13       1.71e6          0 0.000000
+   ☁️1 -60.0--40.0km     20.0   🧊    Solid          Air        0     -273      7.92e13       1.71e6          0 0.000000
+   ☁️2 -40.0--20.0km     20.0   🧊    Solid          Air        0     -273      9.00e13       1.71e6          0 0.000000
+   ☁️3  -20.0-0.0km     20.0   🧊    Solid          Air        0     -273      1.02e14       1.71e6          0 0.000000
+    🗻4   0.0-10.0km     10.0   🧊    Solid     Silicate        0     -273      2.73e18       8.52e5       3203 0.000000
+    🗻5  10.0-20.0km     10.0   🧊    Solid     Silicate        0     -273      2.73e18       8.50e5       3210 0.000000
+    🗻6  20.0-34.9km     14.9   🧊    Solid     Silicate        0     -273      4.09e18       1.27e6       3218 0.000000
+    🗻7  34.9-49.8km     14.9   🧊    Solid     Silicate        0     -273      4.09e18       1.27e6       3227 0.000000
+    🗻8  49.8-69.5km     19.8   🧊    Solid     Silicate        0     -273      5.46e18       1.69e6       3239 0.000000
+    🗻9  69.5-89.2km     19.7   🧊    Solid     Silicate        0     -273      5.46e18       1.68e6       3252 0.000000
+   🗻10 89.2-108.8km     19.6   🧊    Solid     Silicate        0     -273      5.46e18       1.67e6       3264 0.000000
+   🗻11 108.8-133.2km     24.4   🧊    Solid     Silicate        0     -273      6.82e18       2.08e6       3279 0.000000
+   🗻12 133.2-157.5km     24.3   🧊    Solid     Silicate        0     -273      6.82e18       2.07e6       3295 0.000000
+   🗻13 157.5-181.6km     24.2   🧊    Solid     Silicate        0     -273      6.82e18       2.06e6       3311 0.000000
+   🗻14 181.6-370.8km    189.1   🧊    Solid     Silicate        0     -273      5.46e19       1.61e7       3384 0.000000
+   🗻15 370.8-553.0km    182.2   🧊    Solid     Silicate        0     -273      5.46e19       1.55e7       3512 0.000000
+   🗻16 553.0-728.8km    175.8   💨      Gas     Silicate    61523    61250      5.46e19       1.50e7       3641 0.020717
+
+📊 === SIMULATION TIMING REPORT ===
+🔄 Total steps: 500
+⏱️  Years per step: 5000
+
+📈 PER-OPERATION BREAKDOWN:
+  🔧 SurfaceEnergyInit         | Total:       14ms | Avg/step:        0ms | Init:     14ms | After:      0ms | Share:   0.0%
+  🔧 RadianceOp                | Total:    17927ms | Avg/step:       35ms | Init:      0ms | After:      0ms | Share:  25.6%
+  🔧 ThermalConduction         | Total:    39516ms | Avg/step:       79ms | Init:      0ms | After:      0ms | Share:  56.3%
+  🔧 AtmosphericGeneration     | Total:    11132ms | Avg/step:       22ms | Init:      0ms | After:      0ms | Share:  15.9%
+  🔧 TemperatureReporting      | Total:       25ms | Avg/step:        0ms | Init:     12ms | After:     12ms | Share:   0.0%
+  🔧 ThermalHeatMapExport      | Total:     1513ms | Avg/step:        2ms | Init:     31ms | After:      0ms | Share:   2.2%
+
+⏱️  TOTAL SIMULATION TIME: 70129ms (70.13s)
+🚀 Average time per step: 140.26ms
+💫 Steps per second: 7.13
+📊 === END TIMING REPORT ===
+
+
+Process finished with exit code 0
+
+

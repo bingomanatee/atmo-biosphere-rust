@@ -92,12 +92,7 @@ impl MaterialUtils {
     }
 
     /// Get cooling temperature range as f64 tuple for calculations
-    pub fn cool_temp_range_as_f64(phase: &MaterialPhase) -> Option<(f64, f64)> {
-        match (phase.cool_temp_min, phase.cool_temp_max) {
-            (Some(min), Some(max)) => Some((min as f64, max as f64)),
-            _ => None,
-        }
-    }
+    // cool_temp fields removed - use boil_temp as maximum temperature limit
 
     /// Print all properties of a material phase in a human-readable format
     pub fn print_phase_properties(phase: &MaterialPhase, phase_name: &str) {
@@ -132,9 +127,8 @@ impl MaterialUtils {
         if let Some(volume) = Self::activation_volume_m3_per_mol_as_f64(phase) {
             println!("Activation volume: {:.2e} m³/mol", volume);
         }
-        if let Some((min, max)) = Self::cool_temp_range_as_f64(phase) {
-            println!("Cooling temperature range: {:.2} - {:.2} K", min, max);
-        }
+        // cool_temp fields removed - using boil_temp as maximum
+        println!("Maximum temperature: {:.2} K (10x boil temp)", phase.boil_temp * 10.0);
         println!();
     }
 }
