@@ -678,8 +678,9 @@ impl Simulation {
                     // Calculate temperature: start_temp + gradient * depth_in_layer
                     let cell_temperature = layer_start_temperature + gradient_k_per_km * depth_in_layer_km;
 
-                    // Set the temperature (this will recalculate energy properly)
-                    cell.set_temperature_kelvin(cell_temperature);
+                    // Create new cell with correct temperature (immutable pattern)
+                    let new_cell = crate::sim::energy_mass_cell::EnergyMassCell::with_temperature(cell, cell_temperature);
+                    *cell = new_cell;
 
                     // Debug output for first few cells
                     if depth_index < 3 && h3_cell.to_string().ends_with("fffffff") {

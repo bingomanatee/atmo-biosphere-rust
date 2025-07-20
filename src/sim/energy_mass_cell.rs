@@ -298,6 +298,116 @@ impl EnergyMassCell {
         }
     }
 
+    /// Create a new EnergyMassCell with modified temperature (immutable constructor pattern)
+    pub fn with_temperature(source: &EnergyMassCell, new_temperature_kelvin: f64) -> EnergyMassCell {
+        // Calculate new energy based on new temperature: E = m * c * T
+        let material = source.material();
+        let new_energy_joules = source.mass_kg * material.specific_heat_capacity_j_per_kg_k as f64 * new_temperature_kelvin;
+
+        // Determine phase at new temperature and current pressure
+        let new_phase = source.determine_phase_at_conditions(new_temperature_kelvin, source.pressure_pa);
+
+        // Calculate new mass if phase changed
+        let new_mass_kg = if new_phase != source.material_phase {
+            let new_material = MaterialsLoader::get_phase_properties(&source.material_name, new_phase)
+                .expect("Failed to load material properties for new phase");
+            new_material.calculate_mass_from_pressure_volume(MassCalculationParams {
+                pressure_pa: source.pressure_pa,
+                volume_km3: source.volume_km3(),
+                temperature_k: new_temperature_kelvin,
+            })
+        } else {
+            source.mass_kg
+        };
+
+        EnergyMassCell {
+            cell_index: source.cell_index,
+            energy_joules: new_energy_joules,
+            mass_kg: new_mass_kg,
+            material_name: source.material_name.clone(),
+            material_phase: new_phase,
+            height_km: source.height_km,
+            top_km: source.top_km,
+            bottom_km: source.bottom_km,
+            pressure_pa: source.pressure_pa,
+            phase_transition_energy_bank: 0.0, // Reset energy bank for new cell
+            planet_radius_km: source.planet_radius_km,
+            conductivity_w_m_k: 0.0, // Will be computed on first access
+            pending_energy_delta: 0.0,
+        }
+    }
+
+    /// Create a new EnergyMassCell with modified mass (immutable constructor pattern)
+    pub fn with_mass(source: &EnergyMassCell, new_mass_kg: f64) -> EnergyMassCell {
+        let safe_mass = new_mass_kg.max(1.0); // Prevent zero/negative mass
+
+        EnergyMassCell {
+            cell_index: source.cell_index,
+            energy_joules: source.energy_joules,
+            mass_kg: safe_mass,
+            material_name: source.material_name.clone(),
+            material_phase: source.material_phase,
+            height_km: source.height_km,
+            top_km: source.top_km,
+            bottom_km: source.bottom_km,
+            pressure_pa: source.pressure_pa,
+            phase_transition_energy_bank: source.phase_transition_energy_bank,
+            planet_radius_km: source.planet_radius_km,
+            conductivity_w_m_k: 0.0, // Invalidate conductivity cache
+            pending_energy_delta: source.pending_energy_delta,
+        }
+    }
+
+    /// Create a new EnergyMassCell with modified pressure (immutable constructor pattern)
+    pub fn with_pressure(source: &EnergyMassCell, new_pressure_pa: f64) -> EnergyMassCell {
+        // Recalculate mass based on new pressure
+        let new_mass_kg = source.material().calculate_mass_from_pressure_volume(MassCalculationParams {
+            pressure_pa: new_pressure_pa,
+            volume_km3: source.volume_km3(),
+            temperature_k: source.temperature_kelvin(),
+        });
+
+        EnergyMassCell {
+            cell_index: source.cell_index,
+            energy_joules: source.energy_joules,
+            mass_kg: new_mass_kg,
+            material_name: source.material_name.clone(),
+            material_phase: source.material_phase,
+            height_km: source.height_km,
+            top_km: source.top_km,
+            bottom_km: source.bottom_km,
+            pressure_pa: new_pressure_pa,
+            phase_transition_energy_bank: source.phase_transition_energy_bank,
+            planet_radius_km: source.planet_radius_km,
+            conductivity_w_m_k: 0.0, // Invalidate conductivity cache
+            pending_energy_delta: source.pending_energy_delta,
+        }
+    }
+
+    /// Create a new EnergyMassCell with modified energy (immutable constructor pattern)
+    pub fn with_energy(source: &EnergyMassCell, new_energy_joules: f64) -> EnergyMassCell {
+        // Ensure minimum energy to prevent zero/negative energy
+        let material = source.material();
+        let min_energy = source.mass_kg * material.specific_heat_capacity_j_per_kg_k as f64 * 1.0; // Minimum 1K
+        let safe_energy = new_energy_joules.max(min_energy);
+
+        EnergyMassCell {
+            cell_index: source.cell_index,
+            energy_joules: safe_energy,
+            mass_kg: source.mass_kg,
+            material_name: source.material_name.clone(),
+            material_phase: source.material_phase,
+            height_km: source.height_km,
+            top_km: source.top_km,
+            bottom_km: source.bottom_km,
+            pressure_pa: source.pressure_pa,
+            phase_transition_energy_bank: source.phase_transition_energy_bank,
+            planet_radius_km: source.planet_radius_km,
+            conductivity_w_m_k: source.conductivity_w_m_k,
+            pending_energy_delta: source.pending_energy_delta,
+        }
+    }
+
     /// Add energy change to pending delta (components should use this instead of direct modification)
     pub fn add_pending_energy_change(&mut self, energy_delta_joules: f64) {
         self.pending_energy_delta += energy_delta_joules;

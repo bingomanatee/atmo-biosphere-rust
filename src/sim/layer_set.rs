@@ -135,9 +135,10 @@ impl LayerSet {
                 // Update cell pressure AND mass with the estimated values
                 cell.set_pressure_pa(total_pressure);
 
-                // CRITICAL FIX: Actually apply the estimated mass to the cell
-                let current_mass = cell.mass_kg();
-                cell.add_mass_kg(-current_mass + estimated_mass_kg);
+                // CRITICAL FIX: Actually apply the estimated mass to the cell (immutable pattern)
+                let new_cell_with_mass = crate::sim::energy_mass_cell::EnergyMassCell::with_mass(cell, estimated_mass_kg);
+                let new_cell_with_pressure = crate::sim::energy_mass_cell::EnergyMassCell::with_pressure(&new_cell_with_mass, total_pressure);
+                *cell = new_cell_with_pressure;
 
                 // Add this cell's estimated mass to the accumulation for cells below
                 let cell_mass_per_km2 = estimated_mass_kg / area_km2;
