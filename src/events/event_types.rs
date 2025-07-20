@@ -38,6 +38,19 @@ pub enum SimulationEvent {
         method_name: String,
         duration: Duration,
     },
+
+    // Method-level events for fine-grained timing
+    MethodStarted {
+        component_name: String,
+        method_name: String,
+        step: i64,
+    },
+    MethodCompleted {
+        component_name: String,
+        method_name: String,
+        step: i64,
+        duration: Duration,
+    },
     
     // Transaction events
     TransactionProposed {

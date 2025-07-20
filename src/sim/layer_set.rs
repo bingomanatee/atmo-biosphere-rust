@@ -56,8 +56,8 @@ impl LayerSet {
                         let top_km = params.start_height_km + index as f64 * params.cell_height_km;
                         let cell_center_depth_km = top_km + params.cell_height_km / 2.0;
 
-                        // Calculate temperature based on depth using quadratic thermal gradient
-                        let temperature_kelvin = thermal_config.calculate_temperature_at_depth(cell_center_depth_km);
+                        // Use default temperature - will be set properly in thermal gradient pass
+                        let temperature_kelvin = 300.0; // Default temperature, will be overridden
 
                         EnergyMassCell::new(EnergyMassCellProps {
                             cell_index: cel_id,
@@ -132,8 +132,12 @@ impl LayerSet {
                 let area_km2 = cell.area();
                 let estimated_mass_kg = Self::estimate_cell_mass_at_pressure(cell, total_pressure);
 
-                // Update cell pressure with the estimated mass-based pressure
+                // Update cell pressure AND mass with the estimated values
                 cell.set_pressure_pa(total_pressure);
+
+                // CRITICAL FIX: Actually apply the estimated mass to the cell
+                let current_mass = cell.mass_kg();
+                cell.add_mass_kg(-current_mass + estimated_mass_kg);
 
                 // Add this cell's estimated mass to the accumulation for cells below
                 let cell_mass_per_km2 = estimated_mass_kg / area_km2;
@@ -152,8 +156,8 @@ impl LayerSet {
         let volume_km3 = cell.area() * cell.height_km;
         let temperature_k = cell.temperature_kelvin();
 
-        // If temperature is NaN or zero, use estimated temperature from depth
-        let safe_temperature_k = if temperature_k.is_nan() || temperature_k <= 0.0 {
+        // If temperature is NaN, zero, or clamped to 1K, use estimated temperature from depth
+        let safe_temperature_k = if temperature_k.is_nan() || temperature_k <= 1.0 {
             // Estimate temperature from depth using simple gradient
             let depth_km = cell.top_km + cell.height_km / 2.0;
             288.15 + depth_km * 25.0 // Simple 25K/km gradient

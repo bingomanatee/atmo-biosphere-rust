@@ -83,16 +83,55 @@ macro_rules! emit_event {
     ($emitter:expr, $event:expr) => {
         $emitter.emit($event);
     };
-    
+
     ($emitter:expr, $event:expr, step: $step:expr) => {
         $emitter.emit_with_step($event, $step);
     };
-    
+
     ($emitter:expr, $event:expr, component: $component:expr) => {
         $emitter.emit_with_component($event, $component.to_string());
     };
-    
+
     ($emitter:expr, $event:expr, step: $step:expr, component: $component:expr) => {
         $emitter.emit_with_context($event, $step, $component.to_string());
+    };
+}
+
+/// Macro for timing methods with automatic event emission
+#[macro_export]
+macro_rules! time_method_with_events {
+    ($emitter:expr, $component:expr, $method:expr, $step:expr, $code:block) => {
+        {
+            use crate::events::SimulationEvent;
+
+            // Emit method started event
+            $emitter.emit_with_context(
+                SimulationEvent::MethodStarted {
+                    component_name: $component.to_string(),
+                    method_name: $method.to_string(),
+                    step: $step,
+                },
+                $step,
+                $component.to_string()
+            );
+
+            let start = std::time::Instant::now();
+            let result = $code;
+            let duration = start.elapsed();
+
+            // Emit method completed event
+            $emitter.emit_with_context(
+                SimulationEvent::MethodCompleted {
+                    component_name: $component.to_string(),
+                    method_name: $method.to_string(),
+                    step: $step,
+                    duration,
+                },
+                $step,
+                $component.to_string()
+            );
+
+            result
+        }
     };
 }

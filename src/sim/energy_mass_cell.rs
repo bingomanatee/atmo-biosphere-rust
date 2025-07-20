@@ -231,10 +231,13 @@ impl EnergyMassCell {
             .expect("Failed to load material properties");
 
         // Calculate initial mass using the default phase
+        // Use reference temperature (300K) for mass calculation since mass should primarily
+        // depend on material density and volume, not the actual cell temperature
+        let reference_temperature_k = 300.0; // Room temperature reference
         let initial_mass_kg = initial_material.calculate_mass_from_pressure_volume(MassCalculationParams {
             pressure_pa: props.pressure_pa,
             volume_km3,
-            temperature_k: props.temperature_kelvin,
+            temperature_k: reference_temperature_k,
         });
 
         // Create temporary cell to use phase determination methods
@@ -262,11 +265,12 @@ impl EnergyMassCell {
             .expect("Failed to load material properties for correct phase");
 
         // Recalculate mass with the correct phase if needed
+        // Use reference temperature for mass calculation, not actual cell temperature
         let final_mass_kg = if correct_phase != initial_phase {
             final_material.calculate_mass_from_pressure_volume(MassCalculationParams {
                 pressure_pa: props.pressure_pa,
                 volume_km3,
-                temperature_k: props.temperature_kelvin,
+                temperature_k: reference_temperature_k,
             })
         } else {
             initial_mass_kg
@@ -274,6 +278,8 @@ impl EnergyMassCell {
 
         // Calculate energy based on temperature and mass with correct phase
         let energy_joules = final_mass_kg * final_material.specific_heat_capacity_j_per_kg_k as f64 * props.temperature_kelvin;
+
+        // Energy calculation complete
 
         EnergyMassCell {
             cell_index: props.cell_index,
@@ -319,9 +325,52 @@ impl EnergyMassCell {
         self.conductivity_w_m_k = 0.0; // Invalidate conductivity cache
     }
 
+    /// Get the material name for this cell
+    pub fn material_name(&self) -> &str {
+        &self.material_name
+    }
+
     /// Reset pending energy changes without applying them (for cleanup)
     pub fn reset_pending_energy_changes(&mut self) {
         self.pending_energy_delta = 0.0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    #[test]
+    fn test_zero_mass_problem_is_fixed() {
+        println!("\n🧪 Testing Zero Mass Problem Fix");
+        println!("================================");
+
+        // The critical test: 1K temperature should NOT produce zero mass
+        let props = EnergyMassCellProps {
+            cell_index: h3o::CellIndex::try_from(0x85283473fffffff_u64).unwrap(),
+            height_km: 10.0,
+            top_km: 0.0,
+            material_name: "basalt".to_string(),
+            temperature_kelvin: 1.0, // This was causing zero mass
+            pressure_pa: 1e5,
+            planet_radius_km: 6371.0,
+        };
+
+        let cell = EnergyMassCell::new(props);
+        let mass = cell.mass_kg();
+
+        println!("Cell with 1K temperature:");
+        println!("  Mass: {:.2e} kg", mass);
+        println!("  Temperature: {:.1}K", cell.temperature_kelvin());
+
+        // The fix: mass should be > 0 even with 1K temperature
+        assert!(mass > 0.0, "CRITICAL: Mass should be > 0 even with 1K temperature");
+        assert!(mass > 1e10, "Mass should be substantial for 10km³ of basalt");
+
+        println!("✅ ZERO MASS PROBLEM FIXED!");
+        println!("   - 1K temperature produces non-zero mass: {:.2e} kg", mass);
+        println!("   - Mass calculation now independent of input temperature");
     }
 }
 
@@ -383,6 +432,7 @@ impl EnergyMass for EnergyMassCell {
 
     fn set_temperature_kelvin(&mut self, temperature_kelvin: f64) {
         // Fiat operation - bypasses energy bank and instantly sets phase and mass
+        println!("🔧 set_temperature_kelvin called: {:.1}K, mass={:.2e}", temperature_kelvin, self.mass_kg);
 
         // Determine what phase the material should be at this temperature and current pressure
         let new_phase = self.determine_phase_at_conditions(temperature_kelvin, self.pressure_pa);
@@ -407,6 +457,9 @@ impl EnergyMass for EnergyMassCell {
 
         // Clear energy bank since this is a fiat operation
         self.phase_transition_energy_bank = 0.0;
+
+        println!("🔧 set_temperature_kelvin result: energy={:.2e}, temp_check={:.1}K",
+               self.energy_joules, self.temperature_kelvin());
     }
 
     fn add_energy_joules(&mut self, energy_joules: f64) {

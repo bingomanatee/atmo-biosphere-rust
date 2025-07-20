@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use crate::sim::layer_set::{LayerSet, LayerSetParams};
 use crate::sim::transaction_manager::{TransactionManager, Transaction, CellLocation};
 use crate::energy_mass::energy_mass::EnergyMass;
-use crate::profiling::component_profiler::ComponentProfiler;
-use crate::events::{EventEmitter, SimulationEvent};
+use crate::events::EventEmitter;
 
 /// Thermal gradient configuration using a quadratic model
 #[derive(Clone)]
@@ -31,7 +30,6 @@ pub struct Simulation {
     config: SimulationConfig,
     components: HashMap<&'static str, Box<dyn SimComponent>>,
     pub layer_sets: Vec<LayerSet>,
-    pub profiler: ComponentProfiler,
     /// Global plume storage - plumes can be created by any component
     pub plumes: Vec<crate::component::convection_plume_component::ConvectionPlume>,
     /// Next plume ID for unique identification
@@ -60,7 +58,6 @@ impl Simulation {
             config: config,
             components: HashMap::new(),
             layer_sets: Vec::new(),
-            profiler: ComponentProfiler::new(),
             plumes: Vec::new(),
             next_plume_id: 1,
             transaction_manager: TransactionManager::new(),
@@ -107,6 +104,9 @@ impl Simulation {
 
         // After all layers are created, perform final pressure adjustment pass
         self.adjust_all_pressures_for_mass_above();
+
+        // Apply thermal gradient across all layer sets (second pass)
+        self.apply_thermal_gradient_across_all_layers();
     }
 
     /// Calculate temperature at a given depth using the configured thermal gradient segments
@@ -216,32 +216,18 @@ impl Simulation {
 
         println!("\n🔄 Step {}: Year {} ({:.0} years/step)", step, year, years_per_step);
 
-        // Start simulation timing if first step
-        if step == 0 {
-            self.profiler.start_simulation();
-        }
-
         // 1. Record baseline snapshots for transaction validation
-        let start = std::time::Instant::now();
         self.record_all_baselines();
-        let duration = start.elapsed();
-        self.profiler.record_method_call("simulation", "record_baselines", duration);
 
         // 2. Run components to generate transactions
-        let start = std::time::Instant::now();
-        self.run_components_with_transactions(step, year);
-        let duration = start.elapsed();
-        self.profiler.record_method_call("simulation", "run_components", duration);
+        self.run_components_with_transactions(step, year as f64);
 
         // 3. Validate and regulate transactions
-        let start = std::time::Instant::now();
         let regulated_transactions = if enable_transaction_debug {
             self.transaction_manager.validate_and_regulate_transactions_with_debug(years_per_step, true)
         } else {
             self.transaction_manager.validate_and_regulate_transactions(years_per_step)
         };
-        let duration = start.elapsed();
-        self.profiler.record_method_call("simulation", "validate_transactions", duration);
 
         // 3.5. Check if hotspots caused scaling and adapt if needed
         let scaling_detected = self.detect_hotspot_scaling(&regulated_transactions);
@@ -250,16 +236,10 @@ impl Simulation {
         }
 
         // 4. Apply regulated transactions to simulation
-        let start = std::time::Instant::now();
         self.apply_regulated_transactions(&regulated_transactions);
-        let duration = start.elapsed();
-        self.profiler.record_method_call("simulation", "apply_transactions", duration);
 
         // 5. Apply legacy pending energy changes (for components not yet converted)
-        let start = std::time::Instant::now();
         self.apply_all_pending_energy_changes();
-        let duration = start.elapsed();
-        self.profiler.record_method_call("simulation", "apply_pending_energy_changes", duration);
 
         // Increment step counter
         self.step += 1;
@@ -267,12 +247,19 @@ impl Simulation {
 
     /// Record baseline snapshots for all cells
     fn record_all_baselines(&mut self) {
+        // Collect all cell locations first to avoid borrowing issues
+        let mut cell_locations = Vec::new();
         for (layer_index, layer_set) in self.layer_sets.iter().enumerate() {
             for (h3_cell, column) in &layer_set.layers {
                 for depth_index in 0..column.cells.len() {
-                    self.record_cell_baseline(layer_index, *h3_cell, depth_index);
+                    cell_locations.push((layer_index, *h3_cell, depth_index));
                 }
             }
+        }
+
+        // Now record baselines for all collected locations
+        for (layer_index, h3_cell, depth_index) in cell_locations {
+            self.record_cell_baseline(layer_index, h3_cell, depth_index);
         }
     }
 
@@ -280,19 +267,14 @@ impl Simulation {
     fn run_components_with_transactions(&mut self, step: i64, year: f64) {
         // We need to temporarily take ownership of components to avoid borrowing issues
         let mut components = std::mem::take(&mut self.components);
-        let mut profiler = std::mem::take(&mut self.profiler);
 
         // Each component generates transactions instead of direct changes
         for (component_name, comp) in components.iter_mut() {
-            let start = std::time::Instant::now();
-            comp.step(self, step, year);
-            let duration = start.elapsed();
-            profiler.record_method_call(component_name, "step", duration);
+            comp.step(self, step, year as i64);
         }
 
-        // Put the components and profiler back
+        // Put the components back
         self.components = components;
-        self.profiler = profiler;
     }
 
     /// Detect if hotspot-related transactions were scaled (indicating overpowered hotspots)
@@ -342,58 +324,22 @@ impl Simulation {
 
     /// Generate performance report for all components (final - ends simulation)
     pub fn generate_performance_report(&mut self) -> String {
-        self.profiler.end_simulation();
-        self.profiler.generate_report()
+        "Performance profiling disabled".to_string()
     }
 
     /// Generate intermediate performance report (reusable - doesn't end simulation)
     pub fn generate_intermediate_report(&self) -> String {
-        self.profiler.generate_report()
+        "Performance profiling disabled".to_string()
     }
 
     /// Get current performance summary (lightweight, reusable)
     pub fn get_performance_summary(&self) -> String {
-        let mut report = String::new();
-        let component_summary = self.profiler.get_component_summary();
-
-        report.push_str("📊 Current Performance Summary\n");
-        report.push_str("==============================\n");
-
-        // Sort components by total time
-        let mut components: Vec<_> = component_summary.values().collect();
-        components.sort_by(|a, b| b.total_time().cmp(&a.total_time()));
-
-        for (rank, component) in components.iter().enumerate() {
-            report.push_str(&format!("{}. {}: {:.2} ms\n",
-                rank + 1, component.component_name, component.total_time_ms()));
-        }
-
-        report
+        "Performance profiling disabled".to_string()
     }
 
     /// Get component-specific performance data (reusable)
     pub fn get_component_performance(&self, component_name: &str) -> Option<String> {
-        let component_summary = self.profiler.get_component_summary();
-
-        if let Some(metrics) = component_summary.get(component_name) {
-            let mut report = String::new();
-            report.push_str(&format!("🔧 {} Performance\n", component_name));
-            report.push_str(&format!("Total time: {:.2} ms\n", metrics.total_time_ms()));
-            report.push_str(&format!("Methods: {}\n", metrics.methods.len()));
-
-            let mut methods: Vec<_> = metrics.methods.iter().collect();
-            methods.sort_by(|a, b| b.1.total_time.cmp(&a.1.total_time));
-
-            for (method_name, method_metrics) in methods.iter().take(5) {
-                let method_time_ms = method_metrics.total_time.as_secs_f64() * 1000.0;
-                report.push_str(&format!("  {}: {:.2} ms ({} calls)\n",
-                    method_name, method_time_ms, method_metrics.call_count));
-            }
-
-            Some(report)
-        } else {
-            None
-        }
+        None // Performance profiling disabled
     }
 
     /// Print performance report to console
@@ -404,12 +350,48 @@ impl Simulation {
 
     /// Reset profiling data
     pub fn reset_profiling(&mut self) {
-        self.profiler.reset();
+        // Performance profiling disabled
     }
 
-    /// Get profiler reference for manual timing
-    pub fn profiler_mut(&mut self) -> &mut ComponentProfiler {
-        &mut self.profiler
+    /// Add an event listener to the simulation
+    pub fn add_event_listener<L: crate::events::event_listener::EventListener + Send + 'static>(&mut self, listener: L) {
+        self.event_emitter.add_listener(listener);
+    }
+
+    /// Calculate actual overhead mass from all cells above the specified cell
+    pub fn calculate_overhead_mass_for_cell(&self, target_layer: usize, target_h3: h3o::CellIndex, target_depth: usize) -> f64 {
+        let mut total_overhead_mass_kg = 0.0;
+
+        // Sum mass from all layer sets above the target layer
+        for layer_index in 0..target_layer {
+            if let Some(layer_set) = self.layer_sets.get(layer_index) {
+                if let Some(column) = layer_set.layers.get(&target_h3) {
+                    for cell in &column.cells {
+                        total_overhead_mass_kg += cell.mass_kg();
+                    }
+                }
+            }
+        }
+
+        // Sum mass from cells above in the same layer set
+        if let Some(layer_set) = self.layer_sets.get(target_layer) {
+            if let Some(column) = layer_set.layers.get(&target_h3) {
+                for depth_index in 0..target_depth {
+                    if let Some(cell) = column.cells.get(depth_index) {
+                        total_overhead_mass_kg += cell.mass_kg();
+                    }
+                }
+            }
+        }
+
+        // Convert to mass per m² using cell area
+        if let Some(cell) = self.get_cell(target_layer, target_h3, target_depth) {
+            let area_km2 = cell.area();
+            let area_m2 = area_km2 * 1e6; // Convert km² to m²
+            total_overhead_mass_kg / area_m2
+        } else {
+            0.0
+        }
     }
 
     /// Gateway method: Propose a transaction between cells
@@ -502,12 +484,16 @@ impl Simulation {
     pub fn record_cell_baseline(&mut self, layer: usize, h3_cell: h3o::CellIndex, depth: usize) {
         if let Some(cell) = self.get_cell(layer, h3_cell, depth) {
             let location = CellLocation::new(layer, h3_cell, depth);
+            // Calculate initial overhead mass from current pressure
+            let current_pressure = cell.pressure_pa();
+            let initial_overhead_mass_kg_per_m2 = (current_pressure - crate::constants::REFERENCE_PRESSURE_PA) / crate::constants::GRAVITY_M_S2;
+
             let snapshot = crate::sim::transaction_manager::CellSnapshot {
                 location: location.clone(),
                 mass_kg: cell.mass_kg(),
                 energy_joules: cell.energy_joules(),
                 temperature_kelvin: cell.temperature_kelvin(),
-                pressure_pa: cell.pressure_pa(),
+                initial_overhead_mass_kg_per_m2,
             };
             self.transaction_manager.record_baseline_snapshot(location, snapshot);
         }
@@ -522,12 +508,16 @@ impl Simulation {
             for (h3_cell_index, column) in &layer_set.layers {
                 for (depth_index, cell) in column.cells.iter().enumerate() {
                     let location = CellLocation::new(layer_set_index, *h3_cell_index, depth_index);
+                    // Calculate initial overhead mass from current pressure
+                    let current_pressure = cell.pressure_pa();
+                    let initial_overhead_mass_kg_per_m2 = (current_pressure - crate::constants::REFERENCE_PRESSURE_PA) / crate::constants::GRAVITY_M_S2;
+
                     let snapshot = CellSnapshot {
                         location: location.clone(),
                         mass_kg: cell.mass_kg(),
                         energy_joules: cell.energy_joules(),
                         temperature_kelvin: cell.temperature_kelvin(),
-                        pressure_pa: cell.pressure_pa(),
+                        initial_overhead_mass_kg_per_m2,
                     };
                     self.transaction_manager.record_baseline_snapshot(location, snapshot);
                 }
@@ -657,6 +647,60 @@ impl Simulation {
             }
         }
     }
+
+    /// Apply layer-specific thermal gradients to each layer set
+    /// Each layer set has its own thermal gradient (25, 15, 10, 5 K/km)
+    fn apply_thermal_gradient_across_all_layers(&mut self) {
+        use crate::energy_mass::energy_mass::EnergyMass;
+
+        println!("🌡️ Applying layer-specific thermal gradients...");
+
+        // Define thermal gradients for each layer set (K/km)
+        let layer_gradients = vec![25.0, 15.0, 10.0, 5.0];
+
+        // Track temperature from previous layer set
+        let mut current_temperature = self.config.thermal_config.surface_temperature_k;
+
+        // Apply gradients layer by layer
+        for (layer_set_index, layer_set) in self.layer_sets.iter_mut().enumerate() {
+            let gradient_k_per_km = layer_gradients.get(layer_set_index).copied().unwrap_or(5.0); // Default to 5 K/km for extra layers
+
+            println!("   Layer Set {}: gradient {:.1} K/km, starting temp {:.1}K ({:.1}°C)",
+                   layer_set_index, gradient_k_per_km, current_temperature, current_temperature - 273.15);
+
+            let layer_start_temperature = current_temperature;
+
+            for (h3_cell, column) in &mut layer_set.layers {
+                for (depth_index, cell) in column.cells.iter_mut().enumerate() {
+                    // Calculate depth within this layer set
+                    let depth_in_layer_km = cell.top_km - layer_set.start_height_km + cell.height_km / 2.0;
+
+                    // Calculate temperature: start_temp + gradient * depth_in_layer
+                    let cell_temperature = layer_start_temperature + gradient_k_per_km * depth_in_layer_km;
+
+                    // Set the temperature (this will recalculate energy properly)
+                    cell.set_temperature_kelvin(cell_temperature);
+
+                    // Debug output for first few cells
+                    if depth_index < 3 && h3_cell.to_string().ends_with("fffffff") {
+                        println!("     Cell {}: depth_in_layer {:.1}km → {:.1}K ({:.1}°C)",
+                               depth_index, depth_in_layer_km, cell_temperature, cell_temperature - 273.15);
+                    }
+                }
+            }
+
+            // Calculate temperature at bottom of this layer set for next layer
+            let layer_thickness_km = layer_set.layers.values().next()
+                .map(|column| column.cells.len() as f64 * column.cells[0].height_km)
+                .unwrap_or(0.0);
+            current_temperature = layer_start_temperature + gradient_k_per_km * layer_thickness_km;
+
+            println!("     Layer Set {} complete: bottom temp {:.1}K ({:.1}°C)",
+                   layer_set_index, current_temperature, current_temperature - 273.15);
+        }
+
+        println!("✅ Layer-specific thermal gradients applied successfully");
+    }
 }
 
 impl ThermalGradientConfig {
@@ -720,5 +764,178 @@ impl ThermalGradientConfig {
         // Quadratic decrease: gradient(d) = grad_surf - (grad_surf - grad_deep) * (d/d_ref)²
         let factor = (d / d_ref).powi(2);
         grad_surf - (grad_surf - grad_deep) * factor
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sim::layer_set::LayerSetParams;
+    use crate::energy_mass::energy_mass::EnergyMass;
+    use h3o::Resolution;
+
+    #[test]
+    fn test_complete_simulation_zero_mass_fix() {
+        println!("\n🧪 Testing Complete Simulation - Zero Mass Problem Fix");
+        println!("======================================================");
+
+        // Create a realistic multi-layer simulation that was showing zero mass issues
+        let thermal_config = ThermalGradientConfig::earth_like(288.15);
+        let config = SimulationConfig {
+            layer_set_params: vec![
+                // Surface layer - basalt crust
+                LayerSetParams {
+                    resolution: Resolution::Two,
+                    start_height_km: 0.0,
+                    cell_height_km: 5.0,
+                    material_name: "basalt".to_string(),
+                    column_count: 10, // 50km total depth
+                    planet_radius_km: 6371.0,
+                },
+                // Mid layer - granite
+                LayerSetParams {
+                    resolution: Resolution::Two,
+                    start_height_km: 50.0,
+                    cell_height_km: 10.0,
+                    material_name: "granite".to_string(),
+                    column_count: 5, // 50km total depth
+                    planet_radius_km: 6371.0,
+                },
+                // Deep layer - basalt mantle
+                LayerSetParams {
+                    resolution: Resolution::Two,
+                    start_height_km: 100.0,
+                    cell_height_km: 15.0,
+                    material_name: "basalt".to_string(),
+                    column_count: 10, // 150km total depth
+                    planet_radius_km: 6371.0,
+                },
+            ],
+            thermal_config,
+            warmup_steps: 0,
+            steps: 1,
+            years_per_step: 1000.0,
+        };
+
+        let mut components: Vec<Box<dyn crate::component::SimComponent>> = vec![];
+        let mut sim = Simulation::new(config, &mut components);
+
+        println!("🚀 Initializing complete simulation...");
+        sim.initialize();
+
+        println!("📊 Analyzing all cells for zero mass problem...");
+
+        let mut total_cells = 0;
+        let mut zero_mass_cells = 0;
+        let mut low_temp_cells = 0;
+        let mut rational_cells = 0;
+        let mut problematic_cells = Vec::new();
+
+        // Check every single cell in the simulation
+        for (layer_index, layer_set) in sim.layer_sets.iter().enumerate() {
+            for (h3_cell, column) in &layer_set.layers {
+                for (depth_index, cell) in column.cells.iter().enumerate() {
+                    total_cells += 1;
+
+                    let mass = cell.mass_kg();
+                    let temp = cell.temperature_kelvin();
+                    let pressure = cell.pressure_pa();
+                    let material = cell.material_name();
+
+                    // Categorize cells
+                    if mass <= 0.0 {
+                        zero_mass_cells += 1;
+                        problematic_cells.push(format!(
+                            "ZERO MASS: Layer {}, Depth {}, Material {}, Temp {:.1}K, Pressure {:.2e}Pa",
+                            layer_index, depth_index, material, temp, pressure
+                        ));
+                    } else if temp < 10.0 {
+                        low_temp_cells += 1;
+                        problematic_cells.push(format!(
+                            "LOW TEMP: Layer {}, Depth {}, Material {}, Temp {:.1}K, Mass {:.2e}kg",
+                            layer_index, depth_index, material, temp, mass
+                        ));
+                    } else {
+                        rational_cells += 1;
+                    }
+                }
+            }
+        }
+
+        println!("\n📈 COMPLETE SIMULATION ANALYSIS RESULTS:");
+        println!("   Total cells: {}", total_cells);
+        println!("   Rational cells: {} ({:.1}%)", rational_cells, (rational_cells as f64 / total_cells as f64) * 100.0);
+        println!("   Zero mass cells: {} ({:.1}%)", zero_mass_cells, (zero_mass_cells as f64 / total_cells as f64) * 100.0);
+        println!("   Low temp cells: {} ({:.1}%)", low_temp_cells, (low_temp_cells as f64 / total_cells as f64) * 100.0);
+
+        // Show first few problematic cells for debugging
+        if !problematic_cells.is_empty() {
+            println!("\n❌ PROBLEMATIC CELLS (first 10):");
+            for (i, cell_info) in problematic_cells.iter().take(10).enumerate() {
+                println!("   {}. {}", i + 1, cell_info);
+            }
+        }
+
+        // The critical assertions
+        assert!(total_cells > 0, "Should have created cells");
+        assert_eq!(zero_mass_cells, 0, "CRITICAL: No cells should have zero mass after complete simulation initialization");
+        assert_eq!(low_temp_cells, 0, "CRITICAL: No cells should have unrealistically low temperature");
+        assert_eq!(rational_cells, total_cells, "CRITICAL: All cells should have rational values");
+
+        println!("\n✅ COMPLETE SIMULATION ZERO MASS FIX SUCCESS:");
+        println!("   - All {} cells have non-zero mass", total_cells);
+        println!("   - All cells have realistic temperatures");
+        println!("   - Zero mass problem is COMPLETELY FIXED");
+        println!("   - Geological simulation should now work correctly");
+    }
+
+    #[test]
+    fn test_thermal_gradient_and_mass_calculation() {
+        println!("\n🧪 Testing Thermal Gradient and Mass Calculation");
+        println!("================================================");
+
+        let thermal_config = ThermalGradientConfig::earth_like(288.15);
+
+        // Test thermal gradient at various depths
+        let test_depths = vec![0.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0];
+
+        println!("🌡️ Thermal gradient test:");
+        for depth in test_depths {
+            let temp = thermal_config.calculate_temperature_at_depth(depth);
+            println!("   Depth {:.0}km: {:.1}K ({:.1}°C)", depth, temp, temp - 273.15);
+
+            // Check if any temperatures are problematically low
+            if temp < 10.0 {
+                println!("   ⚠️  Very low temperature at {}km: {:.1}K", depth, temp);
+            }
+        }
+
+        // Test mass calculation with different temperatures
+        println!("\n🧱 Mass calculation test:");
+        let test_temps = vec![1.0, 10.0, 100.0, 300.0, 1000.0, 2000.0];
+
+        for temp in test_temps {
+            // Create a test cell with this temperature
+            let props = crate::sim::energy_mass_cell::EnergyMassCellProps {
+                cell_index: h3o::CellIndex::try_from(0x85283473fffffff_u64).unwrap(),
+                height_km: 10.0,
+                top_km: 0.0,
+                material_name: "basalt".to_string(),
+                temperature_kelvin: temp,
+                pressure_pa: 1e5,
+                planet_radius_km: 6371.0,
+            };
+
+            let cell = crate::sim::energy_mass_cell::EnergyMassCell::new(props);
+            let mass = cell.mass_kg();
+
+            println!("   Temp {:.1}K: Mass {:.2e}kg", temp, mass);
+
+            if mass <= 0.0 {
+                println!("   ❌ ZERO MASS at {:.1}K!", temp);
+            }
+        }
+
+        println!("\n🎯 This test helps identify where the zero mass problem occurs");
     }
 }

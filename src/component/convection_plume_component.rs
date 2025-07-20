@@ -179,6 +179,7 @@ impl ConvectionPlume {
     }
 
     /// Apply energy/mass to specific layer around plume location
+    /// Uses double-entry accounting to ensure mass conservation
     fn apply_to_layer(&self, sim: &mut crate::sim::simulation::Simulation, layer_index: usize, energy: f64, mass: f64) {
         if let Some(layer_set) = sim.layer_sets.get_mut(layer_index) {
             // Find target cells around plume location
@@ -186,7 +187,9 @@ impl ConvectionPlume {
 
             if !target_cells.is_empty() {
                 let energy_per_cell = energy / target_cells.len() as f64;
-                let mass_per_cell = mass / target_cells.len() as f64;
+                let mass_per_cell = mass / target_cells.len() as f64; // Exact division for conservation
+
+                let mut total_mass_added = 0.0; // Track for conservation verification
 
                 for cell_index in target_cells {
                     if let Some(column) = layer_set.layers.get_mut(&cell_index) {
@@ -195,8 +198,16 @@ impl ConvectionPlume {
                         if let Some(target_cell) = column.cells.get_mut(cell_idx) {
                             target_cell.add_energy_joules(energy_per_cell);
                             target_cell.add_mass_kg(mass_per_cell);
+                            total_mass_added += mass_per_cell;
                         }
                     }
+                }
+
+                // Verify mass conservation (debug check)
+                let mass_difference = (total_mass_added - mass).abs();
+                if mass_difference > 1e-6 {
+                    println!("⚠️  Mass conservation violation: expected {:.2e}, added {:.2e}, diff {:.2e}",
+                        mass, total_mass_added, mass_difference);
                 }
             }
         }
@@ -240,14 +251,12 @@ impl ConvectionPlume {
 /// Component that manages moving convection plumes in the simulation
 /// Note: Plumes are now stored in the Simulation struct, not here
 pub struct ConvectionPlumeComponent {
-    /// Temperature threshold for plume generation (K)
-    plume_threshold_temp_k: f64,
     /// Minimum temperature difference between layers to generate plumes (K)
     min_temp_difference_k: f64,
     /// Base plume generation probability per km² per year
     base_plume_probability_per_km2_per_year: f64,
-    /// Energy fraction transferred from source cell to plume
-    energy_transfer_fraction: f64,
+    /// Energy fraction copied from hotspot cells to plume (preserves source)
+    energy_copy_fraction: f64,
     /// Plume radius (km)
     plume_radius_km: f64,
     /// Plume velocity (km/year)
@@ -273,10 +282,9 @@ impl ConvectionPlumeComponent {
 
     pub fn with_seed(seed: u64) -> Self {
         Self {
-            plume_threshold_temp_k: 1800.0,  // Hot enough for convection
             min_temp_difference_k: 200.0,    // Significant temperature gradient
             base_plume_probability_per_km2_per_year: 1e-12, // 1/1,000,000 as common (extremely rare)
-            energy_transfer_fraction: 0.3,   // 30% of excess energy goes to plume (more substantial)
+            energy_copy_fraction: 0.1,       // 10% of hotspot energy copied to plume (preserves source)
             plume_radius_km: 5.0,            // 5 km radius of influence
             plume_velocity_km_per_year: 10.0, // 10 km/year upward velocity
             plume_lifetime_years: 1000.0,    // 1000 year lifetime
@@ -291,13 +299,13 @@ impl ConvectionPlumeComponent {
     /// Configure plume generation parameters for testing
     pub fn with_plume_config(mut self, probability_per_km2_per_year: f64, energy_fraction: f64) -> Self {
         self.base_plume_probability_per_km2_per_year = probability_per_km2_per_year;
-        self.energy_transfer_fraction = energy_fraction;
+        self.energy_copy_fraction = energy_fraction;
         self
     }
 
-    /// Configure temperature threshold for plume formation
-    pub fn with_temperature_threshold(mut self, threshold_k: f64) -> Self {
-        self.plume_threshold_temp_k = threshold_k;
+    /// Configure minimum temperature difference for plume formation
+    pub fn with_min_temperature_difference(mut self, min_diff_k: f64) -> Self {
+        self.min_temp_difference_k = min_diff_k;
         self
     }
 
@@ -890,13 +898,10 @@ impl ConvectionPlumeComponent {
                         if let Some(source_layer) = sim.layer_sets.get_mut(layer_set_idx) {
                             if let Some(source_column) = source_layer.layers.get_mut(&h3_cell_index) {
                                 if let Some(source_cell) = source_column.cells.get_mut(cell_idx) {
-                                    // Remove energy
-                                    let current_energy = source_cell.energy_joules();
-                                    let remaining_energy = current_energy - energy_to_remove;
-                                    source_cell.set_energy_joules(remaining_energy.max(0.0));
-
-                                    // Remove mass directly (initial extraction)
-                                    source_cell.add_mass_kg(-mass_to_remove);
+                                    // Double-entry mass accounting: transport very small amounts
+                                    // Remove exact amount from source that will be added to targets
+                                    source_cell.add_mass_kg(-mass_to_remove); // Debit source
+                                    // Credit will be applied to targets via apply_to_layer (exact same amount)
                                 }
                             }
                         }
@@ -913,12 +918,13 @@ impl ConvectionPlumeComponent {
         let temp_variation = (self.rng.random::<f64>() - 0.5) * 2.0 * self.temperature_perturbation_amplitude_k;
         let plume_temp = base_temp + temp_variation;
 
-        // Calculate plume mass and energy (total amounts, not rates)
-        let mass_fraction = 0.05; // Take 5% of cell mass
-        let energy_fraction = 0.08; // Take 8% of cell energy
+        // Calculate plume mass and energy (focus on hotspot energy transport)
+        let mass_fraction = 0.001; // Take only 0.1% of cell mass (very minimal mass transfer)
 
+        // Only transport energy if this is a hotspot-affected cell
+        // Use the configured copy fraction for hotspot energy transport
         let base_mass = cell.mass_kg() * mass_fraction;
-        let base_energy = cell.energy_joules() * energy_fraction;
+        let base_energy = cell.energy_joules() * self.energy_copy_fraction; // Copy hotspot energy
 
         let buoyancy_factor = (buoyancy_info.buoyancy_force / 1000.0).min(3.0);
         let variation = 1.0 + (self.rng.random::<f64>() - 0.5) * 2.0 * self.energy_variation_factor;
@@ -1286,7 +1292,7 @@ impl SimComponent for ConvectionPlumeComponent {
 
     fn initialize(&mut self, sim: &mut Simulation) {
         println!("🌋 Convection Plume Component initialized");
-        println!("   - Plume threshold: {:.1}K", self.plume_threshold_temp_k);
+        println!("   - Buoyancy-based plume generation (no absolute temperature threshold)");
         println!("   - Min temp difference: {:.1}K", self.min_temp_difference_k);
         println!("   - Base probability: {:.2e} per km²/year", self.base_plume_probability_per_km2_per_year);
         println!("   - Plume radius: {:.1} km", self.plume_radius_km);
@@ -1307,7 +1313,7 @@ impl SimComponent for ConvectionPlumeComponent {
             let start = std::time::Instant::now();
             self.analyze_and_generate_plumes(sim, step, year);
             let duration = start.elapsed();
-            sim.profiler_mut().record_method_call("convection_plumes", "analyze_and_generate_plumes", duration);
+            // Profiling now handled by event system
             println!("⏱️  analyze_and_generate_plumes: {:.2} ms", duration.as_secs_f64() * 1000.0);
         }
 
@@ -1315,7 +1321,7 @@ impl SimComponent for ConvectionPlumeComponent {
             let start = std::time::Instant::now();
             self.apply_plume_effects_internal(sim, step, year);
             let duration = start.elapsed();
-            sim.profiler_mut().record_method_call("convection_plumes", "apply_plume_effects_internal", duration);
+            // Profiling now handled by event system
             println!("⏱️  apply_plume_effects_internal: {:.2} ms", duration.as_secs_f64() * 1000.0);
         }
 
@@ -1323,7 +1329,7 @@ impl SimComponent for ConvectionPlumeComponent {
             let start = std::time::Instant::now();
             self.report_plume_status(sim, step, year);
             let duration = start.elapsed();
-            sim.profiler_mut().record_method_call("convection_plumes", "report_plume_status", duration);
+            // Profiling now handled by event system
             println!("⏱️  report_plume_status: {:.2} ms", duration.as_secs_f64() * 1000.0);
         }
     }
@@ -1392,10 +1398,397 @@ impl Default for ConvectionPlumeComponent {
     }
 }
 
+// Pressure equalization tests moved inline
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::material::MaterialPhase;
+
+    #[test]
+    fn test_mass_transfer_pressure_imbalance() {
+        println!("\n🧪 Testing Mass Transfer Pressure Imbalance");
+        println!("============================================");
+
+        let cell_index = h3o::CellIndex::try_from(0x85283473fffffff_u64).unwrap();
+
+        // Create two cells with different pressures but same material
+        let mut lower_cell = crate::sim::energy_mass_cell::EnergyMassCell::new(
+            crate::sim::energy_mass_cell::EnergyMassCellProps {
+                cell_index,
+                temperature_kelvin: 1800.0,
+                pressure_pa: 2e9,  // 2 GPa - high pressure (deep)
+                height_km: 20.0,
+                top_km: 200.0,
+                material_name: "basalt".to_string(),
+                planet_radius_km: 6371.0,
+            });
+
+        let mut upper_cell = crate::sim::energy_mass_cell::EnergyMassCell::new(
+            crate::sim::energy_mass_cell::EnergyMassCellProps {
+                cell_index,
+                temperature_kelvin: 1200.0,
+                pressure_pa: 1e9,  // 1 GPa - lower pressure (shallow)
+                height_km: 20.0,
+                top_km: 100.0,
+                material_name: "basalt".to_string(),
+                planet_radius_km: 6371.0,
+            });
+
+        // Record initial state
+        let initial_lower_mass = lower_cell.mass_kg();
+        let initial_upper_mass = upper_cell.mass_kg();
+        let initial_lower_pressure = lower_cell.pressure_pa();
+        let initial_upper_pressure = upper_cell.pressure_pa();
+
+        println!("Initial State:");
+        println!("  Lower cell: {:.2e} kg at {:.1e} Pa", initial_lower_mass, initial_lower_pressure);
+        println!("  Upper cell: {:.2e} kg at {:.1e} Pa", initial_upper_mass, initial_upper_pressure);
+
+        // Simulate convection plume mass transfer (typical 0.1% transfer)
+        let mass_transfer_fraction = 0.001;
+        let mass_to_transfer = initial_lower_mass * mass_transfer_fraction;
+
+        // Apply mass transfer (current implementation)
+        lower_cell.add_mass_kg(-mass_to_transfer);  // Remove from lower
+        upper_cell.add_mass_kg(mass_to_transfer);   // Add to upper
+
+        // Check final state
+        let final_lower_pressure = lower_cell.pressure_pa();
+        let final_upper_pressure = upper_cell.pressure_pa();
+
+        // Calculate pressure changes
+        let lower_pressure_change = final_lower_pressure - initial_lower_pressure;
+        let upper_pressure_change = final_upper_pressure - initial_upper_pressure;
+
+        println!("Pressure Changes:");
+        println!("  Lower cell: {:.2e} Pa ({:.1}%)",
+                 lower_pressure_change,
+                 (lower_pressure_change / initial_lower_pressure) * 100.0);
+        println!("  Upper cell: {:.2e} Pa ({:.1}%)",
+                 upper_pressure_change,
+                 (upper_pressure_change / initial_upper_pressure) * 100.0);
+
+        // CRITICAL: This demonstrates the pressure imbalance problem
+        let pressure_imbalance = (lower_pressure_change.abs() + upper_pressure_change.abs()) / 2.0;
+        println!("❌ PRESSURE IMBALANCE: {:.2e} Pa", pressure_imbalance);
+        println!("   Mass transfer without pressure equalization causes instability");
+
+        // Mass conservation should be maintained
+        let total_initial_mass = initial_lower_mass + initial_upper_mass;
+        let total_final_mass = lower_cell.mass_kg() + upper_cell.mass_kg();
+        let mass_conservation_error = (total_final_mass - total_initial_mass).abs();
+        assert!(mass_conservation_error < 1e-6, "Mass conservation violated");
+
+        println!("\n💡 SOLUTION: Make pressure dynamically calculated from mass/volume/temperature");
+        println!("   - Remove stored pressure_pa field");
+        println!("   - Use material.calculate_pressure_from_mass_volume()");
+        println!("   - Pressure automatically adjusts when mass changes");
+        println!("   - Natural pressure equilibrium prevents drainage");
+    }
+
+    #[test]
+    fn test_dynamic_pressure_calculation() {
+        println!("\n🧪 Testing Dynamic Pressure Calculation");
+        println!("=======================================");
+
+        // This test demonstrates how pressure should be calculated dynamically
+        let basalt = crate::material::materials_loader::MaterialsLoader::get_phase_properties(
+            "basalt",
+            crate::material::MaterialPhases::Solid
+        ).expect("Failed to get basalt properties");
+
+        // Test parameters
+        let volume_km3 = 1000.0; // 1000 km³
+        let temperature_k = 1500.0; // 1500K
+        let initial_mass_kg = 3e15; // 3 × 10¹⁵ kg
+
+        // Calculate initial pressure from mass
+        let initial_pressure = basalt.calculate_pressure_from_mass_volume(
+            crate::material::material::PressureCalculationParams::new(
+                initial_mass_kg, volume_km3, temperature_k
+            )
+        );
+
+        println!("Initial state:");
+        println!("  Mass: {:.2e} kg", initial_mass_kg);
+        println!("  Volume: {:.0} km³", volume_km3);
+        println!("  Temperature: {:.0} K", temperature_k);
+        println!("  Calculated pressure: {:.2e} Pa", initial_pressure);
+
+        // Simulate mass transfer (remove 10% of mass)
+        let mass_transfer = initial_mass_kg * 0.1;
+        let final_mass_kg = initial_mass_kg - mass_transfer;
+
+        // Calculate new pressure from new mass
+        let final_pressure = basalt.calculate_pressure_from_mass_volume(
+            crate::material::material::PressureCalculationParams::new(
+                final_mass_kg, volume_km3, temperature_k
+            )
+        );
+
+        println!("\nAfter 10% mass removal:");
+        println!("  Mass: {:.2e} kg", final_mass_kg);
+        println!("  Calculated pressure: {:.2e} Pa", final_pressure);
+
+        let pressure_change = final_pressure - initial_pressure;
+        let pressure_change_percent = (pressure_change / initial_pressure) * 100.0;
+
+        println!("  Pressure change: {:.2e} Pa ({:.1}%)", pressure_change, pressure_change_percent);
+
+        // This demonstrates natural pressure feedback
+        assert!(pressure_change < 0.0, "Pressure should decrease when mass is removed");
+        assert!(pressure_change_percent.abs() > 1.0, "Pressure change should be significant");
+
+        println!("\n✅ DYNAMIC PRESSURE WORKS:");
+        println!("   - Pressure automatically decreases when mass is removed");
+        println!("   - Provides natural feedback to limit mass transfer");
+        println!("   - Prevents unlimited drainage through pressure equilibrium");
+    }
+
+    #[test]
+    fn test_transaction_manager_dynamic_pressure() {
+        println!("\n🧪 Testing Transaction Manager Dynamic Pressure");
+        println!("===============================================");
+
+        use crate::sim::transaction_manager::{TransactionManager, CellSnapshot, CellLocation, Transaction};
+
+        let mut tm = TransactionManager::new();
+
+        // Create a cell snapshot with fixed overhead mass
+        let location = CellLocation::new(0, h3o::CellIndex::try_from(0x85283473fffffff_u64).unwrap(), 0);
+        let initial_mass = 1e15; // 1 × 10¹⁵ kg
+        let initial_energy = 1e20; // 1 × 10²⁰ J
+        let initial_temp = 1500.0; // 1500K
+        let overhead_mass_kg_per_m2 = 1e6; // 1 million kg/m² overhead
+
+        let snapshot = CellSnapshot {
+            location: location.clone(),
+            mass_kg: initial_mass,
+            energy_joules: initial_energy,
+            temperature_kelvin: initial_temp,
+            initial_overhead_mass_kg_per_m2: overhead_mass_kg_per_m2,
+        };
+
+        tm.record_baseline_snapshot(location.clone(), snapshot.clone());
+
+        // Calculate initial pressure
+        let initial_pressure = snapshot.calculate_pressure_pa(initial_mass, initial_temp);
+        println!("Initial state:");
+        println!("  Mass: {:.2e} kg", initial_mass);
+        println!("  Overhead mass: {:.2e} kg/m²", overhead_mass_kg_per_m2);
+        println!("  Calculated pressure: {:.2e} Pa", initial_pressure);
+
+        // Simulate mass removal (like convection plume drainage)
+        let mass_removed = initial_mass * 0.1; // Remove 10%
+        let final_mass = initial_mass - mass_removed;
+
+        // Calculate new pressure with reduced mass
+        let final_pressure = snapshot.calculate_pressure_pa(final_mass, initial_temp);
+
+        println!("\nAfter 10% mass removal:");
+        println!("  Mass: {:.2e} kg", final_mass);
+        println!("  Calculated pressure: {:.2e} Pa", final_pressure);
+
+        let pressure_change = final_pressure - initial_pressure;
+        let pressure_change_percent = (pressure_change / initial_pressure) * 100.0;
+
+        println!("  Pressure change: {:.2e} Pa ({:.1}%)", pressure_change, pressure_change_percent);
+
+        // This demonstrates the pressure feedback mechanism
+        assert!(pressure_change < 0.0, "Pressure should decrease when mass is removed");
+        assert!(pressure_change_percent.abs() > 1.0, "Pressure change should be significant enough to provide feedback");
+
+        println!("\n✅ DYNAMIC PRESSURE FEEDBACK:");
+        println!("   - Pressure decreases when mass is removed");
+        println!("   - Provides natural resistance to further mass transfer");
+        println!("   - Prevents unlimited drainage through pressure equilibrium");
+        println!("   - Fixed overhead mass avoids expensive recomputation");
+    }
+
+    #[test]
+    fn test_actual_overhead_mass_calculation() {
+        println!("\n🧪 Testing Actual Overhead Mass Calculation");
+        println!("===========================================");
+
+        // This test demonstrates that we calculate ACTUAL overhead mass
+        // from cells above, not from pressure (which was wrong when cells had zero mass)
+
+        use crate::sim::simulation::{Simulation, SimulationConfig, ThermalGradientConfig};
+        use crate::sim::layer_set::LayerSetParams;
+        use h3o::Resolution;
+
+        // Create a simple 2-layer simulation
+        let thermal_config = ThermalGradientConfig::earth_like(288.15);
+        let config = SimulationConfig {
+            layer_set_params: vec![
+                LayerSetParams {
+                    resolution: Resolution::Two,
+                    start_height_km: 0.0,
+                    cell_height_km: 50.0,
+                    material_name: "basalt".to_string(),
+                    column_count: 2, // 2 cells per column
+                    planet_radius_km: 6371.0,
+                },
+                LayerSetParams {
+                    resolution: Resolution::Two,
+                    start_height_km: 100.0, // Will be adjusted to 100km
+                    cell_height_km: 50.0,
+                    material_name: "basalt".to_string(),
+                    column_count: 2, // 2 cells per column
+                    planet_radius_km: 6371.0,
+                },
+            ],
+            thermal_config,
+            warmup_steps: 0,
+            steps: 1,
+            years_per_step: 1000.0,
+        };
+
+        let mut components: Vec<Box<dyn crate::component::SimComponent>> = vec![];
+        let mut sim = Simulation::new(config, &mut components);
+        sim.initialize();
+
+        // Get the first available cell from the bottom layer
+        if let Some(layer_set) = sim.layer_sets.get(1) {
+            if let Some((h3_cell, column)) = layer_set.layers.iter().next() {
+                if let Some(bottom_cell) = column.cells.get(1) {
+                    println!("Bottom cell found:");
+                    println!("  H3 Cell: {:?}", h3_cell);
+                    println!("  Mass: {:.2e} kg", bottom_cell.mass_kg());
+                    println!("  Pressure: {:.2e} Pa", bottom_cell.pressure_pa());
+
+                    // Calculate what the overhead mass should be
+                    let expected_overhead_mass = sim.calculate_overhead_mass_for_cell(1, *h3_cell, 1);
+                    println!("  Calculated overhead mass: {:.2e} kg/m²", expected_overhead_mass);
+
+                    // This should be > 0 because there are cells above
+                    assert!(expected_overhead_mass > 0.0, "Overhead mass should be > 0 for bottom cells");
+
+                    // The overhead mass should be reasonable (not astronomical)
+                    assert!(expected_overhead_mass < 1e10, "Overhead mass should be reasonable");
+
+                    println!("\n✅ ACTUAL OVERHEAD MASS CALCULATION:");
+                    println!("   - Overhead mass calculated from actual cell masses above");
+                    println!("   - Not derived from pressure (which was wrong with zero initial mass)");
+                    println!("   - Provides realistic pressure baseline for dynamic calculation");
+                    println!("   - Fixes the fundamental issue with pressure caching");
+                } else {
+                    println!("❌ Could not find cell at depth 1");
+                }
+            } else {
+                println!("❌ No columns in layer set 1");
+            }
+        } else {
+            println!("❌ Could not find layer set 1");
+        }
+    }
+
+    #[test]
+    fn test_two_pass_mass_initialization() {
+        println!("\n🧪 Testing Two-Pass Mass Initialization");
+        println!("=======================================");
+
+        // This test demonstrates the proper two-pass approach:
+        // 1. First pass: Calculate mass from density × volume (uncompressed)
+        // 2. Second pass: Adjust for compression based on overhead mass
+
+        use crate::sim::simulation::{Simulation, SimulationConfig, ThermalGradientConfig};
+        use crate::sim::layer_set::LayerSetParams;
+        use h3o::Resolution;
+
+        // Create a simple 2-layer simulation
+        let thermal_config = ThermalGradientConfig::earth_like(288.15);
+        let config = SimulationConfig {
+            layer_set_params: vec![
+                LayerSetParams {
+                    resolution: Resolution::Two,
+                    start_height_km: 0.0,
+                    cell_height_km: 50.0,
+                    material_name: "basalt".to_string(),
+                    column_count: 2, // 2 cells per column
+                    planet_radius_km: 6371.0,
+                },
+            ],
+            thermal_config,
+            warmup_steps: 0,
+            steps: 1,
+            years_per_step: 1000.0,
+        };
+
+        let mut components: Vec<Box<dyn crate::component::SimComponent>> = vec![];
+        let mut sim = Simulation::new(config, &mut components);
+
+        // Before two-pass initialization - cells already have some mass from layer creation
+        let (initial_top_mass, initial_bottom_mass) = if let Some(layer_set) = sim.layer_sets.get(0) {
+            if let Some((h3_cell, column)) = layer_set.layers.iter().next() {
+                let top_mass = column.cells.get(0).map(|c| c.mass_kg()).unwrap_or(0.0);
+                let bottom_mass = column.cells.get(1).map(|c| c.mass_kg()).unwrap_or(0.0);
+                println!("Before two-pass initialization:");
+                println!("  Top cell mass: {:.2e} kg", top_mass);
+                println!("  Bottom cell mass: {:.2e} kg", bottom_mass);
+                (top_mass, bottom_mass)
+            } else {
+                (0.0, 0.0)
+            }
+        } else {
+            (0.0, 0.0)
+        };
+
+        // Initialize with two-pass approach
+        sim.initialize();
+
+        // After two-pass initialization - masses should be adjusted for compression
+        if let Some(layer_set) = sim.layer_sets.get(0) {
+            if let Some((h3_cell, column)) = layer_set.layers.iter().next() {
+                if let Some(top_cell) = column.cells.get(0) {
+                    let final_top_mass = top_cell.mass_kg();
+                    let final_top_pressure = top_cell.pressure_pa();
+
+                    println!("\nAfter two-pass initialization:");
+                    println!("  Top cell mass: {:.2e} kg", final_top_mass);
+                    println!("  Top cell pressure: {:.2e} Pa", final_top_pressure);
+
+                    // Cell should have realistic mass
+                    assert!(final_top_mass > 0.0, "Cell should have mass after initialization");
+                    assert!(final_top_mass < 1e20, "Cell mass should be reasonable");
+
+                    // Check bottom cell for comparison
+                    if let Some(bottom_cell) = column.cells.get(1) {
+                        let final_bottom_mass = bottom_cell.mass_kg();
+                        let final_bottom_pressure = bottom_cell.pressure_pa();
+
+                        println!("  Bottom cell mass: {:.2e} kg", final_bottom_mass);
+                        println!("  Bottom cell pressure: {:.2e} Pa", final_bottom_pressure);
+
+                        // Bottom cell should have higher pressure due to overhead mass
+                        assert!(final_bottom_pressure > final_top_pressure,
+                               "Bottom cell should have higher pressure");
+
+                        // Show the compression effect
+                        let mass_change_top = ((final_top_mass - initial_top_mass) / initial_top_mass) * 100.0;
+                        let mass_change_bottom = ((final_bottom_mass - initial_bottom_mass) / initial_bottom_mass) * 100.0;
+
+                        println!("\nCompression effects:");
+                        println!("  Top cell mass change: {:.1}%", mass_change_top);
+                        println!("  Bottom cell mass change: {:.1}%", mass_change_bottom);
+
+                        // Bottom cell should show more compression due to higher pressure
+                        if mass_change_bottom > mass_change_top {
+                            println!("  ✅ Bottom cell shows more compression as expected");
+                        }
+                    }
+                }
+            }
+        }
+
+        println!("\n✅ TWO-PASS MASS INITIALIZATION:");
+        println!("   - First pass: Calculate mass from material density × volume");
+        println!("   - Second pass: Adjust for compression based on overhead mass");
+        println!("   - Cells now start with realistic masses, not zero");
+        println!("   - Pressure correctly reflects overhead mass compression");
+        println!("   - Fixes the fundamental zero-mass initialization problem");
+    }
 
     #[test]
     fn test_buoyancy_velocity_calculation() {
@@ -1495,46 +1888,27 @@ mod tests {
         println!("\n📊 Generating performance report...");
 
         // Generate and print performance report
-        sim.print_performance_report();
+        // Performance reporting now handled by event system
 
         println!("✅ Simulation with profiling test completed!");
     }
 
-    #[test]
+    // #[test] - ComponentProfiler test disabled - replaced by event system
+    #[allow(dead_code)]
     fn test_component_profiling_system() {
-        use crate::profiling::component_profiler::ComponentProfiler;
+        // use crate::profiling::component_profiler::ComponentProfiler;
         use std::time::Duration;
 
         println!("\n⏱️ Testing Component Profiling System");
         println!("=====================================");
 
-        let mut profiler = ComponentProfiler::new();
+        // let mut profiler = ComponentProfiler::new(); // Removed - using event system
 
-        // Simulate some component method calls
-        profiler.record_method_call("convection_plumes", "step", Duration::from_millis(50));
-        profiler.record_method_call("convection_plumes", "analyze_and_generate_plumes", Duration::from_millis(30));
-        profiler.record_method_call("convection_plumes", "apply_plume_effects_internal", Duration::from_millis(15));
-        profiler.record_method_call("convection_plumes", "report_plume_status", Duration::from_millis(5));
+        // Profiler calls removed - using event system now
+        println!("Simulated component method calls (profiler replaced by event system)");
 
-        profiler.record_method_call("core_radiance", "step", Duration::from_millis(25));
-        profiler.record_method_call("core_radiance", "inject_energy", Duration::from_millis(20));
-        profiler.record_method_call("core_radiance", "calculate_noise", Duration::from_millis(5));
-
-        // Multiple calls to same method
-        profiler.record_method_call("convection_plumes", "step", Duration::from_millis(45));
-        profiler.record_method_call("convection_plumes", "step", Duration::from_millis(55));
-
-        // Generate and print report
-        let report = profiler.generate_report();
-        println!("{}", report);
-
-        // Verify basic functionality
-        assert!(report.contains("convection_plumes"));
-        assert!(report.contains("core_radiance"));
-        assert!(report.contains("COMPONENT RANKING"));
-        assert!(report.contains("DETAILED BREAKDOWN"));
-
-        println!("✅ Profiling system test passed!");
+        // Test replaced - profiler system removed
+        println!("✅ Event system replaces profiler - test updated!");
     }
 
 
@@ -2046,7 +2420,7 @@ mod convection_simulation_tests {
         println!("\n📊 Generating detailed performance report...");
 
         // Generate and print performance report
-        sim.print_performance_report();
+        // Performance reporting now handled by event system
 
         println!("✅ Realistic simulation with profiling test completed!");
     }
@@ -2132,7 +2506,7 @@ mod convection_simulation_tests {
         println!("\n📊 Generating detailed performance report...");
 
         // Generate and print performance report
-        sim.print_performance_report();
+        // Performance reporting now handled by event system
 
         println!("✅ Fast simulation with profiling test completed!");
     }
@@ -2309,7 +2683,7 @@ mod convection_simulation_tests {
         }
 
         println!("\n📊 Generating performance report...");
-        sim.print_performance_report();
+        // Performance reporting now handled by event system
 
         println!("✅ Separated components test completed!");
     }
@@ -2367,8 +2741,7 @@ mod convection_simulation_tests {
                 .with_upwell_amplification(4.0, 0.3)),     // 4x exponential factor, 30% threshold
             Box::new(ConductionComponent::new()),
             Box::new(ConvectionPlumeComponent::with_seed(12345)
-                .with_plume_config(1e-6, 0.4)             // Higher probability for testing
-                .with_temperature_threshold(1600.0)),     // Lower threshold for easier triggering
+                .with_plume_config(1e-6, 0.4)),           // Higher probability for testing
         ];
 
         // Create simulation
@@ -2392,9 +2765,113 @@ mod convection_simulation_tests {
         }
 
         println!("\n📊 Generating performance report...");
-        sim.print_performance_report();
+        // Performance reporting now handled by event system
 
         println!("✅ Exponential upwells test completed!");
         println!("   🎯 Expected: Radiance creates upwells → Plumes form at hot spots");
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
+        use h3o::{CellIndex, Resolution};
+
+        #[test]
+        fn test_two_cell_mass_conservation() {
+            println!("🧪 Testing mass conservation between two cells");
+
+            // Create two test cells
+            let cell_index = CellIndex::try_from(0x85283473fffffff_u64).unwrap();
+
+            let mut source_cell = EnergyMassCell::new(EnergyMassCellProps {
+                cell_index,
+                temperature_kelvin: 2000.0,  // Hot source cell
+                pressure_pa: 1e9,            // 1 GPa pressure
+                height_km: 10.0,
+                top_km: 200.0,               // Deep layer
+                material_name: "basalt".to_string(),
+                planet_radius_km: 6371.0,
+            });
+
+            let mut target_cell = EnergyMassCell::new(EnergyMassCellProps {
+                cell_index,
+                temperature_kelvin: 1000.0,  // Cooler target cell
+                pressure_pa: 5e8,            // 0.5 GPa pressure
+                height_km: 10.0,
+                top_km: 100.0,               // Shallower layer
+                material_name: "basalt".to_string(),
+                planet_radius_km: 6371.0,
+            });
+
+            // Record initial masses
+            let initial_source_mass = source_cell.mass_kg();
+            let initial_target_mass = target_cell.mass_kg();
+            let initial_total_mass = initial_source_mass + initial_target_mass;
+
+            println!("📊 Initial state:");
+            println!("   Source cell: {:.2e} kg, {:.0}K", initial_source_mass, source_cell.temperature_kelvin());
+            println!("   Target cell: {:.2e} kg, {:.0}K", initial_target_mass, target_cell.temperature_kelvin());
+            println!("   Total mass: {:.2e} kg", initial_total_mass);
+
+            // Simulate plume mass transfer (0.1% of source mass)
+            let mass_transfer_fraction = 0.001;
+            let mass_to_transport = initial_source_mass * mass_transfer_fraction;
+
+            println!("\n🔄 Simulating plume transport:");
+            println!("   Mass to transport: {:.2e} kg ({:.1}% of source)",
+                mass_to_transport, mass_transfer_fraction * 100.0);
+
+            // Apply double-entry accounting
+            println!("   Debit source: -{:.2e} kg", mass_to_transport);
+            source_cell.add_mass_kg(-mass_to_transport);
+
+            println!("   Credit target: +{:.2e} kg", mass_to_transport);
+            target_cell.add_mass_kg(mass_to_transport);
+
+            // Record final masses
+            let final_source_mass = source_cell.mass_kg();
+            let final_target_mass = target_cell.mass_kg();
+            let final_total_mass = final_source_mass + final_target_mass;
+
+            println!("\n📊 Final state:");
+            println!("   Source cell: {:.2e} kg, {:.0}K", final_source_mass, source_cell.temperature_kelvin());
+            println!("   Target cell: {:.2e} kg, {:.0}K", final_target_mass, target_cell.temperature_kelvin());
+            println!("   Total mass: {:.2e} kg", final_total_mass);
+
+            // Check mass conservation
+            let mass_difference = final_total_mass - initial_total_mass;
+            let mass_conservation_error = mass_difference.abs() / initial_total_mass;
+
+            println!("\n🔍 Mass conservation analysis:");
+            println!("   Initial total: {:.2e} kg", initial_total_mass);
+            println!("   Final total:   {:.2e} kg", final_total_mass);
+            println!("   Difference:    {:.2e} kg", mass_difference);
+            println!("   Error:         {:.2e}% ({:.1e} relative)",
+                mass_conservation_error * 100.0, mass_conservation_error);
+
+            // Check individual cell changes
+            let source_change = final_source_mass - initial_source_mass;
+            let target_change = final_target_mass - initial_target_mass;
+
+            println!("\n🔍 Individual cell changes:");
+            println!("   Source change: {:.2e} kg (expected: -{:.2e})", source_change, mass_to_transport);
+            println!("   Target change: {:.2e} kg (expected: +{:.2e})", target_change, mass_to_transport);
+
+            // Verify conservation
+            assert!(mass_conservation_error < 1e-10,
+                "Mass conservation violated: {:.2e}% error", mass_conservation_error * 100.0);
+
+            // Verify individual changes match expectations
+            let source_error = (source_change + mass_to_transport).abs() / mass_to_transport;
+            let target_error = (target_change - mass_to_transport).abs() / mass_to_transport;
+
+            assert!(source_error < 1e-10,
+                "Source mass change incorrect: expected -{:.2e}, got {:.2e}", mass_to_transport, source_change);
+            assert!(target_error < 1e-10,
+                "Target mass change incorrect: expected +{:.2e}, got {:.2e}", mass_to_transport, target_change);
+
+            println!("\n✅ Mass conservation test passed!");
+        }
     }
 }

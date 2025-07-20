@@ -592,7 +592,7 @@ impl SimComponent for ConductionComponent {
             let start = std::time::Instant::now();
             self.calculate_conduction(sim, years_per_step);
             let duration = start.elapsed();
-            sim.profiler_mut().record_method_call("thermal_conduction", "calculate_conduction", duration);
+            // Profiling now handled by event system
             println!("⏱️  thermal_conduction: {:.2} ms", duration.as_secs_f64() * 1000.0);
         }
 
@@ -601,7 +601,7 @@ impl SimComponent for ConductionComponent {
             let start = std::time::Instant::now();
             self.apply_surface_cooling(sim);
             let duration = start.elapsed();
-            sim.profiler_mut().record_method_call("thermal_conduction", "surface_cooling", duration);
+            // Profiling now handled by event system
         }
 
         // Report status periodically

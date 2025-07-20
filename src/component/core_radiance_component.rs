@@ -448,6 +448,48 @@ impl CoreRadianceComponent {
         while self.hotspots.len() < self.radiance_config.hotspot_count {
             self.create_random_hotspot(sim);
         }
+    }
+
+    /// Adaptive hotspot management: if hotspots are overpowered, add 50% more and reduce energy by 33%
+    pub fn adapt_hotspots_if_overpowered(&mut self, sim: &Simulation, transaction_scaling_detected: bool) {
+        if transaction_scaling_detected {
+            let original_count = self.radiance_config.hotspot_count;
+            let new_count = (original_count as f64 * 1.5) as usize; // Add 50% more hotspots
+
+            println!("🔥 Hotspots overpowered - adapting system:");
+            println!("   Original hotspots: {}", original_count);
+            println!("   New hotspot count: {}", new_count);
+
+            // Update hotspot count
+            self.radiance_config.hotspot_count = new_count;
+
+            // Reduce energy of all existing hotspots by 33%
+            for hotspot in &mut self.hotspots {
+                hotspot.max_heat_multiplier *= 0.67; // Reduce by 33%
+            }
+
+            // Create additional hotspots to reach new target
+            while self.hotspots.len() < new_count {
+                self.create_random_hotspot(sim);
+
+                // New hotspots also get reduced energy
+                if let Some(last_hotspot) = self.hotspots.last_mut() {
+                    last_hotspot.max_heat_multiplier *= 0.67;
+                }
+            }
+
+            // Recalculate average hotspot watts with new distribution
+            self.average_hotspot_watts = Self::calculate_average_hotspot_watts(&self.radiance_config);
+
+            // Clear hotspot cache with new energy distribution
+            self.hotspot_affected_cells.clear();
+
+            println!("   ✅ Hotspot adaptation complete:");
+            println!("      - Total hotspots: {}", self.hotspots.len());
+            println!("      - Energy per hotspot: reduced by 33%");
+            println!("      - Total energy: maintained (distributed across more hotspots)");
+            println!("      - New average watts: {:.2e}", self.average_hotspot_watts);
+        }
 
         // For testing: if this is the first time creating hotspots, make some of them mature
         if self.current_year == 0.0 && self.hotspots.len() == self.radiance_config.hotspot_count {
@@ -621,6 +663,10 @@ impl SimComponent for CoreRadianceComponent {
     fn complete(&mut self, _sim: &Simulation) {
         println!("🔥 Core Radiance Component completed");
     }
+
+    fn adapt_if_overpowered(&mut self, sim: &Simulation, scaling_detected: bool) {
+        self.adapt_hotspots_if_overpowered(sim, scaling_detected);
+    }
 }
 
 // Internal methods - component's choice of organization (great for unit testing)
@@ -738,6 +784,7 @@ impl CoreRadianceComponent {
                                     let cell_energy = energy_per_cell * falloff_factor;
 
                                     if cell_energy > 0.0 {
+                                        // Direct energy addition (transaction system temporarily disabled)
                                         cell.add_energy_joules(cell_energy);
                                         cells_energized += 1;
                                     }

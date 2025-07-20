@@ -12,4 +12,10 @@ pub trait SimComponent: std::any::Any + Send + Sync {
 
     /// Clean up when simulation is complete
     fn complete(&mut self, sim: &Simulation);
+
+    /// Adapt component if it's causing excessive transaction scaling (optional)
+    fn adapt_if_overpowered(&mut self, _sim: &Simulation, _scaling_detected: bool) {
+        // Default implementation does nothing
+        // Components that can adapt (like CoreRadianceComponent) should override this
+    }
 }
