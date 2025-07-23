@@ -143,8 +143,10 @@ impl LayerSetImmut {
             
             for cell in &column.cells {
                 // Calculate pressure from accumulated mass above
-                let total_pressure = crate::constants::REFERENCE_PRESSURE_PA + 
-                    running_mass_per_km2 * crate::constants::GRAVITY_M_S2;
+                // Convert mass per km² to mass per m² for correct pressure calculation
+                let mass_per_m2 = running_mass_per_km2 / 1e6; // 1 km² = 1e6 m²
+                let total_pressure = crate::constants::REFERENCE_PRESSURE_PA +
+                    mass_per_m2 * crate::constants::GRAVITY_M_S2;
                 
                 // Estimate mass using geological pressure
                 let area_km2 = cell.area();
@@ -155,8 +157,8 @@ impl LayerSetImmut {
                 let new_cell_with_pressure = new_cell_with_mass.with_pressure(total_pressure);
                 new_cells.push(new_cell_with_pressure);
                 
-                // Add this cell's mass to running total for cells below
-                running_mass_per_km2 += estimated_mass_kg / (area_km2 * 1e6); // Convert to kg/m²
+                // Add this cell's mass per km² to running total for cells below
+                running_mass_per_km2 += estimated_mass_kg / area_km2; // Keep in kg/km²
             }
             
             new_layers.insert(*h3_cell, ColumnImmut { cells: new_cells });
