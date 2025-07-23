@@ -1627,7 +1627,7 @@ mod tests {
                     start_height_km: 0.0,
                     cell_height_km: 50.0,
                     material_name: "basalt".to_string(),
-                    column_count: 2, // 2 cells per column
+                    cells_per_column: 2, // 2 cells per column
                     planet_radius_km: 6371.0,
                 },
                 LayerSetParams {
@@ -1635,7 +1635,7 @@ mod tests {
                     start_height_km: 100.0, // Will be adjusted to 100km
                     cell_height_km: 50.0,
                     material_name: "basalt".to_string(),
-                    column_count: 2, // 2 cells per column
+                    cells_per_column: 2, // 2 cells per column
                     planet_radius_km: 6371.0,
                 },
             ],
@@ -1706,7 +1706,7 @@ mod tests {
                     start_height_km: 0.0,
                     cell_height_km: 50.0,
                     material_name: "basalt".to_string(),
-                    column_count: 2, // 2 cells per column
+                    cells_per_column: 2, // 2 cells per column
                     planet_radius_km: 6371.0,
                 },
             ],
@@ -1853,7 +1853,7 @@ mod tests {
                 start_height_km: 0.0,
                 cell_height_km: 10.0,
                 material_name: "basalt".to_string(),
-                column_count: 5, // Just 5 columns for speed
+                cells_per_column: 5, // Just 5 columns for speed
                 planet_radius_km: 6371.0,
             }
         ];
@@ -2046,7 +2046,7 @@ mod convection_simulation_tests {
                 start_height_km: 0.0,
                 cell_height_km: 10.0,           // 10km thick cells
                 material_name: "basalt".to_string(),
-                column_count: 5,                // 5 cells = 50km total
+                cells_per_column: 5,                // 5 cells = 50km total
                 planet_radius_km: 6371.0,
             },
             // Upper Mantle/Lithosphere (50-150km)
@@ -2055,7 +2055,7 @@ mod convection_simulation_tests {
                 start_height_km: 50.0,
                 cell_height_km: 20.0,           // 20km thick cells
                 material_name: "basalt".to_string(),
-                column_count: 5,                // 5 cells = 100km total
+                cells_per_column: 5,                // 5 cells = 100km total
                 planet_radius_km: 6371.0,
             },
             // Asthenosphere (150-300km)
@@ -2064,7 +2064,7 @@ mod convection_simulation_tests {
                 start_height_km: 150.0,
                 cell_height_km: 30.0,           // 30km thick cells
                 material_name: "basalt".to_string(),
-                column_count: 5,                // 5 cells = 150km total
+                cells_per_column: 5,                // 5 cells = 150km total
                 planet_radius_km: 6371.0,
             },
         ];
@@ -2388,11 +2388,11 @@ mod convection_simulation_tests {
         println!("   Layer sets: {}", config.layer_set_params.len());
         for (i, layer) in config.layer_set_params.iter().enumerate() {
             println!("     Layer {}: {}km-{}km, {} cells, Resolution {:?}",
-                i,
-                layer.start_height_km,
-                layer.start_height_km + (layer.column_count as f64 * layer.cell_height_km),
-                layer.column_count,
-                layer.resolution);
+                     i,
+                     layer.start_height_km,
+                     layer.start_height_km + (layer.cells_per_column as f64 * layer.cell_height_km),
+                     layer.cells_per_column,
+                     layer.resolution);
         }
 
         // Create components with convection plumes
@@ -2446,7 +2446,7 @@ mod convection_simulation_tests {
                 start_height_km: 0.0,
                 cell_height_km: 10.0,           // 10km thick cells
                 material_name: "basalt".to_string(),
-                column_count: 3,                // Only 3 cells = 30km total
+                cells_per_column: 3,                // Only 3 cells = 30km total
                 planet_radius_km: 6371.0,
             },
             // Upper Mantle/Lithosphere (50-100km)
@@ -2455,7 +2455,7 @@ mod convection_simulation_tests {
                 start_height_km: 50.0,
                 cell_height_km: 20.0,           // 20km thick cells
                 material_name: "basalt".to_string(),
-                column_count: 3,                // Only 3 cells = 60km total
+                cells_per_column: 3,                // Only 3 cells = 60km total
                 planet_radius_km: 6371.0,
             },
         ];
@@ -2474,11 +2474,11 @@ mod convection_simulation_tests {
         println!("   Layer sets: {}", config.layer_set_params.len());
         for (i, layer) in config.layer_set_params.iter().enumerate() {
             println!("     Layer {}: {}km-{}km, {} cells, Resolution {:?}",
-                i,
-                layer.start_height_km,
-                layer.start_height_km + (layer.column_count as f64 * layer.cell_height_km),
-                layer.column_count,
-                layer.resolution);
+                     i,
+                     layer.start_height_km,
+                     layer.start_height_km + (layer.cells_per_column as f64 * layer.cell_height_km),
+                     layer.cells_per_column,
+                     layer.resolution);
         }
 
         // Create components with convection plumes
@@ -2530,7 +2530,7 @@ mod convection_simulation_tests {
                 start_height_km: 0.0,
                 cell_height_km: 10.0,
                 material_name: "basalt".to_string(),
-                column_count: 3,
+                cells_per_column: 3,
                 planet_radius_km: 6371.0,
             },
             LayerSetParams {
@@ -2538,7 +2538,7 @@ mod convection_simulation_tests {
                 start_height_km: 50.0,
                 cell_height_km: 20.0,
                 material_name: "basalt".to_string(),
-                column_count: 3,
+                cells_per_column: 3,
                 planet_radius_km: 6371.0,
             },
         ];
@@ -2636,7 +2636,7 @@ mod convection_simulation_tests {
                 start_height_km: 0.0,
                 cell_height_km: 10.0,
                 material_name: "basalt".to_string(),
-                column_count: 3,
+                cells_per_column: 3,
                 planet_radius_km: 6371.0,
             },
             LayerSetParams {
@@ -2644,7 +2644,7 @@ mod convection_simulation_tests {
                 start_height_km: 50.0,
                 cell_height_km: 20.0,
                 material_name: "basalt".to_string(),
-                column_count: 3,
+                cells_per_column: 3,
                 planet_radius_km: 6371.0,
             },
         ];
@@ -2710,7 +2710,7 @@ mod convection_simulation_tests {
                 start_height_km: 0.0,
                 cell_height_km: 10.0,
                 material_name: "basalt".to_string(),
-                column_count: 3,
+                cells_per_column: 3,
                 planet_radius_km: 6371.0,
             },
             LayerSetParams {
@@ -2718,7 +2718,7 @@ mod convection_simulation_tests {
                 start_height_km: 50.0,
                 cell_height_km: 20.0,
                 material_name: "basalt".to_string(),
-                column_count: 3,
+                cells_per_column: 3,
                 planet_radius_km: 6371.0,
             },
         ];

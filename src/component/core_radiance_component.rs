@@ -1305,21 +1305,25 @@ mod tests {
         let layer_params = vec![
             // Upper layer (0-25km)
             LayerSetParams {
+                name: "Upper Layer".to_string(),
                 resolution: Resolution::Four,
                 start_height_km: 0.0,
                 cell_height_km: 25.0,
                 material_name: "basalt".to_string(),
-                column_count: 1, // Single cell for simplicity
+                cells_per_column: 1, // Single cell for simplicity
                 planet_radius_km: 6371.0,
+                thermal_gradient_k_per_km: 25.0,
             },
             // Deep layer (25-50km) - will receive core radiance
             LayerSetParams {
+                name: "Deep Layer".to_string(),
                 resolution: Resolution::Four,
                 start_height_km: 25.0,
                 cell_height_km: 25.0,
                 material_name: "basalt".to_string(),
-                column_count: 1, // Single cell for simplicity
+                cells_per_column: 1, // Single cell for simplicity
                 planet_radius_km: 6371.0,
+                thermal_gradient_k_per_km: 10.0,
             },
         ];
 
@@ -1328,7 +1332,7 @@ mod tests {
             years_per_step: 1000.0,
             warmup_steps: 0,
             layer_set_params: layer_params,
-            thermal_config,
+            surface_temp_k: 288.15,
         };
 
         // Test WITHOUT core radiance

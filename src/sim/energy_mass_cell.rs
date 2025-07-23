@@ -542,7 +542,7 @@ impl EnergyMass for EnergyMassCell {
 
     fn set_temperature_kelvin(&mut self, temperature_kelvin: f64) {
         // Fiat operation - bypasses energy bank and instantly sets phase and mass
-        println!("🔧 set_temperature_kelvin called: {:.1}K, mass={:.2e}", temperature_kelvin, self.mass_kg);
+        // Debug: set_temperature_kelvin called
 
         // Determine what phase the material should be at this temperature and current pressure
         let new_phase = self.determine_phase_at_conditions(temperature_kelvin, self.pressure_pa);
@@ -568,8 +568,7 @@ impl EnergyMass for EnergyMassCell {
         // Clear energy bank since this is a fiat operation
         self.phase_transition_energy_bank = 0.0;
 
-        println!("🔧 set_temperature_kelvin result: energy={:.2e}, temp_check={:.1}K",
-               self.energy_joules, self.temperature_kelvin());
+        // Debug: set_temperature_kelvin completed
     }
 
     fn add_energy_joules(&mut self, energy_joules: f64) {

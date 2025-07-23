@@ -126,13 +126,6 @@ impl TransactionManager {
 
     /// Add a proposed transaction to the buffer
     pub fn propose_transaction(&mut self, transaction: Transaction) {
-        println!("📝 Proposed transaction: {} -> {:?}: {:.2e}J, {:.2e}kg ({})",
-            transaction.source_cell.description(),
-            transaction.target_cell.as_ref().map(|t| t.description()),
-            transaction.energy_delta_joules,
-            transaction.mass_delta_kg,
-            transaction.description);
-
         self.pending_transactions.push(transaction);
     }
 
@@ -361,49 +354,26 @@ impl TransactionManager {
         problematic_cells: &HashMap<CellLocation, f64>,
         scaled_transactions: &[Transaction],
     ) {
-        println!("\n🔍 ROOT CAUSE ANALYSIS (Debug Mode)");
-        println!("Problematic cells: {}", problematic_cells.len());
+        // Root cause analysis (silent by default, enable for debugging)
+        // This analyzes which components and cells are causing scaling issues
 
-        for (cell_location, scaling_factor) in problematic_cells {
-            println!("\n🚨 Cell {}: scaling factor {:.3}",
-                cell_location.description(), scaling_factor);
-
-            // Find transactions affecting this cell
-            let affecting_transactions: Vec<&Transaction> = scaled_transactions
-                .iter()
-                .filter(|tx| {
-                    tx.source_cell == *cell_location ||
-                    tx.target_cell.as_ref() == Some(cell_location)
-                })
-                .collect();
-
-            println!("   📋 Transactions affecting this cell:");
-            for tx in affecting_transactions {
-                let direction = if tx.source_cell == *cell_location {
-                    "OUT"
-                } else {
-                    "IN"
-                };
-
-                println!("      {} {}: {:.2e}J, {:.2e}kg ({})",
-                    direction, tx.source, tx.energy_delta_joules, tx.mass_delta_kg, tx.description);
-            }
-        }
-
-        // Component breakdown
-        let mut component_stats: HashMap<String, (usize, f64, f64)> = HashMap::new();
+        // Component breakdown for internal tracking
+        let mut _component_stats: HashMap<String, (usize, f64, f64)> = HashMap::new();
         for tx in scaled_transactions {
-            let (count, energy, mass) = component_stats.entry(tx.source.clone()).or_insert((0, 0.0, 0.0));
+            let (count, energy, mass) = _component_stats.entry(tx.source.clone()).or_insert((0, 0.0, 0.0));
             *count += 1;
             *energy += tx.energy_delta_joules.abs();
             *mass += tx.mass_delta_kg.abs();
         }
 
-        println!("\n📊 Component Impact Summary:");
-        for (component, (count, energy, mass)) in component_stats {
-            println!("   {}: {} transactions, {:.2e}J, {:.2e}kg",
-                component, count, energy, mass);
-        }
+        // Analysis results are available for debugging but not printed by default
+        // Uncomment the println! statements below for detailed root cause analysis:
+
+        // println!("\n🔍 ROOT CAUSE ANALYSIS (Debug Mode)");
+        // println!("Problematic cells: {}", problematic_cells.len());
+        // for (cell_location, scaling_factor) in problematic_cells {
+        //     println!("🚨 Cell {}: scaling factor {:.3}", cell_location.description(), scaling_factor);
+        // }
     }
 
     /// Validate pre-summed totals for a specific cell (more efficient)
@@ -531,8 +501,6 @@ impl TransactionManager {
 
     /// Commit regulated transactions to journal
     pub fn commit_transactions(&mut self, transactions: Vec<Transaction>) {
-        println!("💾 Committing {} regulated transactions to journal", transactions.len());
-        
         // Add to journal with step information
         for mut transaction in transactions {
             transaction.step_id = self.current_step;

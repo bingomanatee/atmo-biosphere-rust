@@ -1,4 +1,4 @@
-use atmo_biosphere_rust::sim::simulation::{Simulation, SimulationConfig, ThermalGradientConfig};
+use atmo_biosphere_rust::sim::simulation::{Simulation, SimulationConfig};
 use atmo_biosphere_rust::sim::layer_set::LayerSetParams;
 use atmo_biosphere_rust::component::{SimComponent, conduction_component::ConductionComponent, core_radiance_component::CoreRadianceComponent, convection_plume_component::ConvectionPlumeComponent};
 use atmo_biosphere_rust::energy_mass::energy_mass::EnergyMass;
@@ -10,50 +10,51 @@ fn main() {
     println!("============================");
     println!("Demonstrates: Buoyancy-based physics, thermal conduction, event-driven performance tracking");
 
-    let thermal_config = ThermalGradientConfig {
-        surface_temperature_k: 288.15,      // 15°C surface
-        surface_gradient_k_per_km: 25.0,    // 25K/km in crust
-        deep_gradient_k_per_km: 10.0,       // 10K/km in asthenosphere
-        reference_depth_km: 200.0,          // Transition at 200km depth
-    };
-
     // Realistic geological structure (0-265km) matching RADIANCE.md
     let layer_params = vec![
         // Crust: 0-50km (10 layers × 5km each)
         LayerSetParams {
+            name: "Crust".to_string(),
             resolution: Resolution::Three,   // Increased by one level
             start_height_km: 0.0,
             cell_height_km: 5.0,             // 5km crust layers
             material_name: "basalt".to_string(),
-            column_count: 10,                // 50km total
+            cells_per_column: 5,                // 50km total
             planet_radius_km: 6371.0,
+            thermal_gradient_k_per_km: 25.0,  // 25K/km in crust
         },
         // Upper Mantle: 50-150km (10 layers × 10km each)
         LayerSetParams {
+            name: "Upper Mantle".to_string(),
             resolution: Resolution::Two,     // Increased by one level
             start_height_km: 50.0,
             cell_height_km: 10.0,            // 10km mid layers
             material_name: "granite".to_string(),
-            column_count: 10,                // 100km total
+            cells_per_column: 10,                // 100km total
             planet_radius_km: 6371.0,
+            thermal_gradient_k_per_km: 15.0,  // 15K/km in upper mantle
         },
-        // Lower Mantle: 150-225km (5 layers × 15km each)
+
         LayerSetParams {
+            name: "Lower Mantle".to_string(),
             resolution: Resolution::One,     // Increased by one level
             start_height_km: 150.0,
             cell_height_km: 15.0,            // 15km deep layers
             material_name: "basalt".to_string(),
-            column_count: 5,                 // 75km total
+            cells_per_column: 5,                 // 75km total
             planet_radius_km: 6371.0,
+            thermal_gradient_k_per_km: 0.4,  // 10K/km in lower mantle
         },
-        // Asthenosphere: 225-265km (2 layers × 20km each)
+
         LayerSetParams {
+            name: "Asthenosphere".to_string(),
             resolution: Resolution::One,     // Increased by one level
             start_height_km: 225.0,
             cell_height_km: 20.0,            // 20km bottom layers
             material_name: "granite".to_string(),
-            column_count: 2,                 // 40km total
+            cells_per_column: 3,                 // 40km total
             planet_radius_km: 6371.0,
+            thermal_gradient_k_per_km: 0.8,   // 5K/km in asthenosphere
         },
     ];
 
@@ -62,7 +63,7 @@ fn main() {
         years_per_step: 10000.0,
         warmup_steps: 0,
         layer_set_params: layer_params,
-        thermal_config,
+        surface_temp_k: 288.0,
     };
 
     let mut components: Vec<Box<dyn SimComponent>> = vec![

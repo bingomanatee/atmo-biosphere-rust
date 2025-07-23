@@ -2,7 +2,7 @@
 mod tests {
     use crate::component::conduction_component::ConductionComponent;
     use crate::component::SimComponent;
-    use crate::sim::simulation::{Simulation, SimulationConfig, ThermalGradientConfig};
+    use crate::sim::simulation::{Simulation, SimulationConfig};
     use crate::sim::layer_set::LayerSetParams;
     use crate::energy_mass::energy_mass::EnergyMass;
     use h3o::Resolution;
@@ -10,43 +10,42 @@ mod tests {
     /// Create a realistic geological simulation
     fn create_geological_simulation() -> Simulation {
         println!("🌍 Creating geological simulation...");
-
-        // Earth-like thermal gradient
-        let thermal_config = ThermalGradientConfig {
-            surface_temperature_k: 288.15,      // 15°C surface
-            surface_gradient_k_per_km: 25.0,    // 25K/km in crust
-            deep_gradient_k_per_km: 10.0,       // 10K/km in mantle
-            reference_depth_km: 200.0,          // Transition at 200km
-        };
+        
 
         // Realistic geological layers (0-300km)
         let layer_params = vec![
             // Crust: 0-50km
             LayerSetParams {
+                name: "Crust".to_string(),
                 resolution: Resolution::Two,
                 start_height_km: 0.0,
                 cell_height_km: 25.0,
                 material_name: "basalt".to_string(),
-                column_count: 2,                 // 50km total
+                cells_per_column: 2,                 // 50km total
                 planet_radius_km: 6371.0,
+                thermal_gradient_k_per_km: 25.0,
             },
             // Upper mantle: 50-150km
             LayerSetParams {
+                name: "Upper Mantle".to_string(),
                 resolution: Resolution::One,
                 start_height_km: 50.0,
                 cell_height_km: 50.0,
                 material_name: "granite".to_string(),
-                column_count: 2,                 // 100km total
+                cells_per_column: 2,                 // 100km total
                 planet_radius_km: 6371.0,
+                thermal_gradient_k_per_km: 0.5,
             },
             // Lower mantle: 150-300km
             LayerSetParams {
+                name: "Lower Mantle".to_string(),
                 resolution: Resolution::Zero,
                 start_height_km: 150.0,
                 cell_height_km: 75.0,
                 material_name: "basalt".to_string(),
-                column_count: 2,                 // 150km total
+                cells_per_column: 2,                 // 150km total
                 planet_radius_km: 6371.0,
+                thermal_gradient_k_per_km: 0.6,
             },
         ];
 
@@ -55,7 +54,7 @@ mod tests {
             years_per_step: 5000.0,             // 5000 years per step
             warmup_steps: 0,
             layer_set_params: layer_params,
-            thermal_config,
+            surface_temp_k: 288.0,
         };
 
         // Core components
@@ -197,23 +196,24 @@ mod tests {
         println!("=====================================");
 
         // Create a very simple geological simulation
-        let thermal_config = crate::sim::simulation::ThermalGradientConfig::earth_like(288.15);
         let config = crate::sim::simulation::SimulationConfig {
             layer_set_params: vec![
                 // Just one simple layer
-                crate::sim::layer_set::LayerSetParams {
-                    resolution: h3o::Resolution::Two,
+                LayerSetParams {
+                    name: "Simple Layer".to_string(),
+                    resolution: Resolution::Two,
                     start_height_km: 0.0,
                     cell_height_km: 10.0,
                     material_name: "basalt".to_string(),
-                    column_count: 5, // 50km total depth
+                    cells_per_column: 5, // 50km total depth
                     planet_radius_km: 6371.0,
+                    thermal_gradient_k_per_km: 0.4, // 10K/km
                 },
             ],
-            thermal_config,
             warmup_steps: 0,
             steps: 1,
             years_per_step: 1000.0,
+            surface_temp_k: 288.0,
         };
 
         let mut components: Vec<Box<dyn crate::component::SimComponent>> = vec![];
@@ -284,7 +284,7 @@ mod tests {
                            depth_index, center_km, temp_k, temp_c);
 
                     // Check if temperature makes sense for depth
-                    let expected_temp = sim.thermal_config().calculate_temperature_at_depth(center_km);
+                    let expected_temp = sim.start_temp_at_depth(center_km);
                     let temp_diff = (temp_k - expected_temp).abs();
 
                     if temp_diff > 1.0 {
@@ -300,64 +300,11 @@ mod tests {
         let test_depths = vec![0.0, 25.0, 50.0, 75.0, 100.0, 150.0, 200.0, 250.0, 300.0];
 
         for depth in test_depths {
-            let temp = sim.thermal_config().calculate_temperature_at_depth(depth);
+            let temp = sim.start_temp_at_depth(depth);
             println!("   {:.0}km: {:.1}K ({:.1}°C)", depth, temp, temp - 273.15);
         }
 
         println!("\n🎯 This test helps identify thermal gradient issues across layer sets");
-    }
-
-    #[test]
-    fn test_simple_thermal_gradient() {
-        println!("\n🧪 Testing Simple Thermal Gradient Calculation");
-        println!("==============================================");
-
-        let thermal_config = crate::sim::simulation::ThermalGradientConfig::earth_like(288.15);
-
-        println!("📊 Thermal config:");
-        println!("   Surface temp: {:.1}K ({:.1}°C)", thermal_config.surface_temperature_k, thermal_config.surface_temperature_k - 273.15);
-        println!("   Surface gradient: {:.1}K/km", thermal_config.surface_gradient_k_per_km);
-        println!("   Deep gradient: {:.1}K/km", thermal_config.deep_gradient_k_per_km);
-        println!("   Reference depth: {:.1}km", thermal_config.reference_depth_km);
-
-        println!("\n🌡️ Expected vs Actual temperatures:");
-        println!("Depth    Expected (simple)    Actual (formula)    Difference");
-        println!("-----    -----------------    ----------------    ----------");
-
-        for depth in [0.0, 2.5, 7.5, 12.5, 17.5, 22.5, 27.5, 32.5] {
-            // Simple linear calculation: surface_temp + gradient * depth
-            let simple_temp = thermal_config.surface_temperature_k + thermal_config.surface_gradient_k_per_km * depth;
-
-            // Actual formula calculation
-            let actual_temp = thermal_config.calculate_temperature_at_depth(depth);
-
-            let difference = actual_temp - simple_temp;
-
-            println!("{:5.1}km  {:8.1}K ({:6.1}°C)    {:8.1}K ({:6.1}°C)    {:+8.1}K",
-                   depth,
-                   simple_temp, simple_temp - 273.15,
-                   actual_temp, actual_temp - 273.15,
-                   difference);
-        }
-
-        println!("\n🎯 This shows if the quadratic formula is reasonable vs simple linear");
-
-        // Test what a 5km cell should have
-        let cell_center_5km = 2.5; // Center of 0-5km cell
-        let expected_temp_5km = thermal_config.calculate_temperature_at_depth(cell_center_5km);
-        println!("\n📏 Cell 0 (0-5km, center at 2.5km): {:.1}K ({:.1}°C)",
-               expected_temp_5km, expected_temp_5km - 273.15);
-
-        let cell_center_10km = 7.5; // Center of 5-10km cell
-        let expected_temp_10km = thermal_config.calculate_temperature_at_depth(cell_center_10km);
-        println!("📏 Cell 1 (5-10km, center at 7.5km): {:.1}K ({:.1}°C)",
-               expected_temp_10km, expected_temp_10km - 273.15);
-
-        let temp_increase = expected_temp_10km - expected_temp_5km;
-        println!("📏 Temperature increase from cell 0 to cell 1: {:.1}K", temp_increase);
-        println!("📏 Expected increase (25K/km × 5km): 125K");
-
-        assert!((temp_increase - 125.0).abs() < 10.0, "Temperature increase should be close to 125K, got {:.1}K", temp_increase);
     }
 
     #[test]

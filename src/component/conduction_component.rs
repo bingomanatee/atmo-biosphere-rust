@@ -473,7 +473,7 @@ impl ConductionComponent {
         }
 
         // Get initial surface temperature before borrowing layer_sets mutably
-        let initial_temp = sim.thermal_config().surface_temperature_k;
+        let initial_temp = sim.config.surface_temp_k;
 
         let surface_layer = &mut sim.layer_sets[0]; // Topmost layer
         let mut cells_cooled = 0;

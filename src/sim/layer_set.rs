@@ -17,6 +17,7 @@ pub struct LayerSet {
     pub layers: HashMap<CellIndex, Column>,
     pub resolution: Resolution,
     pub start_height_km: f64,
+    pub thermal_gradient_k_per_km: f64
 }
 
 #[derive(Clone)]
@@ -25,21 +26,14 @@ pub struct LayerSetParams {
     pub start_height_km: f64,
     pub cell_height_km: f64,
     pub material_name: String,
-    pub column_count: usize,
+    pub cells_per_column: usize,
     pub planet_radius_km: f64,
+    pub thermal_gradient_k_per_km: f64,
+    pub name: String
 }
 
 impl LayerSet {
-    pub fn new(params: &LayerSetParams) -> Self {
-        // Use default thermal configuration for backward compatibility
-        let default_thermal_config = crate::sim::simulation::ThermalGradientConfig::earth_like(288.15);
-        Self::new_with_thermal_config(params, &default_thermal_config)
-    }
-
-    pub fn new_with_thermal_config(
-        params: &LayerSetParams,
-        thermal_config: &crate::sim::simulation::ThermalGradientConfig,
-    ) -> Self {
+    pub fn new(params: &LayerSetParams, start_temperature: f64) -> Self {
         // Collect all cell IDs first to enable parallelization
         let cell_ids: Vec<CellIndex> = H3Utils::iter_cells_with_base(params.resolution)
             .map(|(cel_id, _)| cel_id)
@@ -50,14 +44,14 @@ impl LayerSet {
             .par_iter()
             .map(|&cel_id| {
                 // Create cells within each column in parallel
-                let cells: Vec<EnergyMassCell> = (0..params.column_count)
+                let cells: Vec<EnergyMassCell> = (0..params.cells_per_column)
                     .into_par_iter()
                     .map(|index| {
                         let top_km = params.start_height_km + index as f64 * params.cell_height_km;
                         let cell_center_depth_km = top_km + params.cell_height_km / 2.0;
 
                         // Use default temperature - will be set properly in thermal gradient pass
-                        let temperature_kelvin = 300.0; // Default temperature, will be overridden
+                        let temperature_kelvin = start_temperature + cell_center_depth_km * params.thermal_gradient_k_per_km; // Default temperature, will be overridden
 
                         EnergyMassCell::new(EnergyMassCellProps {
                             cell_index: cel_id,
@@ -85,6 +79,7 @@ impl LayerSet {
             layers,
             resolution: params.resolution,
             start_height_km: params.start_height_km,
+            thermal_gradient_k_per_km: params.thermal_gradient_k_per_km
         }
     }
 
