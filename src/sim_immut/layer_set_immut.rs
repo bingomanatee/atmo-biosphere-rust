@@ -19,18 +19,19 @@ pub struct ColumnImmut {
 
 /// Parameters for creating an immutable layer set
 #[derive(Debug, Clone)]
-pub struct ImmutableLayerSetParams {
+pub struct LayerSetParamsImmut {
     pub resolution: Resolution,
     pub start_height_km: f64,
     pub cell_height_km: f64,
     pub material_name: String,
     pub column_count: usize,
     pub planet_radius_km: f64,
+    pub thermal_gradient_k_per_km: f64,
 }
 
 impl LayerSetImmut {
     /// Create a new immutable layer set
-    pub fn new(params: ImmutableLayerSetParams) -> Self {
+    pub fn new(params: LayerSetParamsImmut) -> Self {
         let mut layers = HashMap::new();
         
         // Generate H3 cells at the specified resolution
@@ -41,9 +42,6 @@ impl LayerSetImmut {
             let children: Vec<CellIndex> = base_cell.children(params.resolution).collect();
             h3_cells.extend(children);
         }
-        
-        println!("Creating immutable layer set with {} H3 cells at resolution {:?}", 
-               h3_cells.len(), params.resolution);
         
         // Create columns for each H3 cell
         for cel_id in h3_cells.iter().take(50) { // Limit for testing
@@ -82,25 +80,52 @@ impl LayerSetImmut {
     /// Apply thermal gradient to all cells in this layer set (immutable pattern)
     pub fn with_thermal_gradient(&self, start_temperature_k: f64, gradient_k_per_km: f64) -> Self {
         let mut new_layers = HashMap::new();
-        
+        let mut cells_processed = 0;
+
         for (h3_cell, column) in &self.layers {
             let mut new_cells = Vec::new();
-            
-            for cell in &column.cells {
+
+            for (cell_idx, cell) in column.cells.iter().enumerate() {
                 // Calculate depth within this layer set
                 let depth_in_layer_km = cell.top_km - self.start_height_km + cell.height_km / 2.0;
-                
+
                 // Calculate temperature: start_temp + gradient * depth_in_layer
                 let cell_temperature = start_temperature_k + gradient_k_per_km * depth_in_layer_km;
-                
+
                 // Create new cell with correct temperature (immutable pattern)
                 let new_cell = cell.with_temperature(cell_temperature);
                 new_cells.push(new_cell);
+                cells_processed += 1;
             }
             
             new_layers.insert(*h3_cell, ColumnImmut { cells: new_cells });
         }
-        
+
+        // Thermal gradient applied to all cells in layer set
+
+        LayerSetImmut {
+            layers: new_layers,
+            start_height_km: self.start_height_km,
+            resolution: self.resolution,
+        }
+    }
+
+    /// Final mass adjustment to fill area based on pressure and temperature (initialization only)
+    pub fn with_final_mass_adjustment(&self) -> Self {
+        let mut new_layers = HashMap::new();
+
+        for (h3_cell, column) in &self.layers {
+            let mut new_cells = Vec::new();
+
+            for cell in &column.cells {
+                // Recalculate mass to properly fill area based on final pressure and temperature
+                let new_cell = cell.recalculate_mass_to_fill_area();
+                new_cells.push(new_cell);
+            }
+
+            new_layers.insert(*h3_cell, ColumnImmut { cells: new_cells });
+        }
+
         LayerSetImmut {
             layers: new_layers,
             start_height_km: self.start_height_km,
@@ -204,4 +229,47 @@ impl ColumnImmut {
     pub fn get_cell_mut(&mut self, depth_index: usize) -> Option<&mut EnergyMassCellImmut> {
         self.cells.get_mut(depth_index)
     }
+}
+
+
+/// Helper function to create default immutable layer set parameters
+pub fn default_layer_set_params_immut(resolution: h3o::Resolution, planet_radius_km: f64) -> Vec<LayerSetParamsImmut> {
+    vec![
+        LayerSetParamsImmut {
+            resolution,
+            start_height_km: 0.0,
+            cell_height_km: 5.0,
+            material_name: "basalt".to_string(),
+            column_count: 5,
+            planet_radius_km,
+            thermal_gradient_k_per_km: 0.5,
+        },
+        LayerSetParamsImmut {
+            resolution,
+            start_height_km: 50.0,
+            cell_height_km: 10.0,
+            material_name: "granite".to_string(),
+            column_count: 10,
+            planet_radius_km,
+            thermal_gradient_k_per_km: 0.5,
+        },
+        LayerSetParamsImmut {
+            resolution,
+            start_height_km: 150.0,
+            cell_height_km: 15.0,
+            material_name: "basalt".to_string(),
+            column_count: 5,
+            planet_radius_km,
+            thermal_gradient_k_per_km: 0.5,
+        },
+        LayerSetParamsImmut {
+            resolution,
+            start_height_km: 225.0,
+            cell_height_km: 20.0,
+            material_name: "granite".to_string(),
+            column_count: 3,
+            planet_radius_km,
+            thermal_gradient_k_per_km: 0.5,
+        },
+    ]
 }

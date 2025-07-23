@@ -1,7 +1,7 @@
 use crate::component::SimComponent;
 use crate::energy_mass::energy_mass::EnergyMass;
 use crate::events::EventEmitter;
-use crate::sim_immut::layer_set_immut::{LayerSetImmut, ImmutableLayerSetParams};
+use crate::sim_immut::layer_set_immut::{LayerSetImmut, LayerSetParamsImmut};
 use crate::sim::transaction_manager::{CellLocation, Transaction, TransactionManager};
 use crate::sim_immut::energy_mass_cell_immut::EnergyMassCellImmut;
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ pub struct SimulationConfigImmut {
     pub steps: u64,
     pub years_per_step: f64,
     pub warmup_steps: u64,
-    pub layer_set_params: Vec<ImmutableLayerSetParams>,
+    pub layer_set_params: Vec<LayerSetParamsImmut>,
     pub surface_temp_k: f64,
 }
 
@@ -71,34 +71,31 @@ impl SimulationImmut {
         let mut cumulative_bottom_km = 0.0;
         let mut current_temperature = self.config.surface_temp_k;
 
-        // Define thermal gradients for each layer set (K/km)
-        let layer_gradients = vec![25.0, 15.0, 10.0, 5.0];
-
         for (layer_index, params) in self.config.layer_set_params.iter().enumerate() {
             // Update start height to be the bottom of the previous layer
             let mut adjusted_params = params.clone();
             adjusted_params.start_height_km = cumulative_bottom_km;
 
-            // Get gradient for this layer
-            let gradient_k_per_km = layer_gradients.get(layer_index).copied().unwrap_or(5.0);
-
             // Create the immutable layer set
             let layer_set = LayerSetImmut::new(adjusted_params);
 
-            // Apply thermal gradient (immutable pattern)
-            let layer_set_with_thermal = layer_set.with_thermal_gradient(current_temperature, gradient_k_per_km);
-
-            // Apply pressure adjustments if not the first layer
-            let final_layer_set = if layer_index > 0 {
+            // Apply pressure adjustments FIRST if not the first layer
+            let layer_set_with_pressure = if layer_index > 0 {
                 let accumulated_mass_per_km2 = self.calculate_accumulated_mass_per_km2(layer_index);
-                layer_set_with_thermal.with_pressure_adjustments(accumulated_mass_per_km2)
+                layer_set.with_pressure_adjustments(accumulated_mass_per_km2)
             } else {
-                layer_set_with_thermal
+                layer_set
             };
+
+            // Apply thermal gradient LAST using the gradient from layer config (immutable pattern)
+            let layer_set_with_thermal = layer_set_with_pressure.with_thermal_gradient(current_temperature, params.thermal_gradient_k_per_km);
+
+            // Final step: reassert mass based on final pressure and temperature to ensure consistency
+            let final_layer_set = layer_set_with_thermal.with_final_mass_adjustment();
 
             // Calculate temperature at bottom of this layer for next layer
             let layer_thickness_km = params.column_count as f64 * params.cell_height_km;
-            current_temperature += gradient_k_per_km * layer_thickness_km;
+            current_temperature += params.thermal_gradient_k_per_km * layer_thickness_km;
 
             // Update cumulative bottom for next layer
             cumulative_bottom_km += layer_thickness_km;
@@ -146,33 +143,22 @@ impl SimulationImmut {
             return;
         }
 
-        // Group transactions by layer set and cell location
-        let mut energy_changes: HashMap<CellLocation, f64> = HashMap::new();
-        let mut mass_changes: HashMap<CellLocation, f64> = HashMap::new();
+        // Re-index transactions by source cell location for efficient lookup
+        let mut transactions_by_cell: HashMap<CellLocation, Vec<&Transaction>> = HashMap::new();
 
         for transaction in &transactions {
-            // Apply to source cell
-            if transaction.energy_delta_joules != 0.0 {
-                *energy_changes
-                    .entry(transaction.source_cell.clone())
-                    .or_insert(0.0) += transaction.energy_delta_joules;
-            }
-            if transaction.mass_delta_kg != 0.0 {
-                *mass_changes
-                    .entry(transaction.source_cell.clone())
-                    .or_insert(0.0) += transaction.mass_delta_kg;
-            }
+            // Group by source cell
+            transactions_by_cell
+                .entry(transaction.source_cell.clone())
+                .or_insert_with(Vec::new)
+                .push(transaction);
 
-            // Apply to target cell if it exists
+            // Group by target cell if it exists
             if let Some(ref target_cell) = transaction.target_cell {
-                if transaction.energy_delta_joules != 0.0 {
-                    *energy_changes.entry(target_cell.clone()).or_insert(0.0) -=
-                        transaction.energy_delta_joules;
-                }
-                if transaction.mass_delta_kg != 0.0 {
-                    *mass_changes.entry(target_cell.clone()).or_insert(0.0) -=
-                        transaction.mass_delta_kg;
-                }
+                transactions_by_cell
+                    .entry(target_cell.clone())
+                    .or_insert_with(Vec::new)
+                    .push(transaction);
             }
         }
 
@@ -188,19 +174,39 @@ impl SimulationImmut {
 
                 for (depth_index, cell) in column.cells.iter().enumerate() {
                     let location = CellLocation::new(layer_set_index, *h3_cell_index, depth_index);
-                    let mut new_cell = cell.clone();
 
-                    // Apply energy changes
-                    if let Some(&energy_delta) = energy_changes.get(&location) {
-                        new_cell = new_cell.with_energy_delta(energy_delta);
+                    // Check if this cell has any transactions
+                    if let Some(cell_transactions) = transactions_by_cell.get(&location) {
+                        // Calculate net energy and mass changes for this cell
+                        let mut net_energy_delta = 0.0;
+                        let mut net_mass_delta = 0.0;
+
+                        for transaction in cell_transactions {
+                            // If this cell is the source, add the deltas
+                            if transaction.source_cell == location {
+                                net_energy_delta += transaction.energy_delta_joules;
+                                net_mass_delta += transaction.mass_delta_kg;
+                            }
+                            // If this cell is the target, subtract the deltas
+                            if transaction.target_cell.as_ref() == Some(&location) {
+                                net_energy_delta -= transaction.energy_delta_joules;
+                                net_mass_delta -= transaction.mass_delta_kg;
+                            }
+                        }
+
+                        // Apply net changes immutably
+                        let mut new_cell = cell.clone();
+                        if net_energy_delta != 0.0 {
+                            new_cell = new_cell.with_energy_delta(net_energy_delta);
+                        }
+                        if net_mass_delta != 0.0 {
+                            new_cell = new_cell.with_mass_delta(net_mass_delta);
+                        }
+                        new_cells.push(new_cell);
+                    } else {
+                        // No transactions for this cell, just clone it
+                        new_cells.push(cell.clone());
                     }
-
-                    // Apply mass changes
-                    if let Some(&mass_delta) = mass_changes.get(&location) {
-                        new_cell = new_cell.with_mass_delta(mass_delta);
-                    }
-
-                    new_cells.push(new_cell);
                 }
 
                 column.cells = new_cells;
@@ -284,40 +290,77 @@ impl SimulationImmut {
     }
 }
 
-/// Helper function to create default immutable layer set parameters
-pub fn default_immutable_layer_set_params(resolution: h3o::Resolution, planet_radius_km: f64) -> Vec<ImmutableLayerSetParams> {
-    vec![
-        ImmutableLayerSetParams {
-            resolution,
-            start_height_km: 0.0,
-            cell_height_km: 5.0,
-            material_name: "basalt".to_string(),
-            column_count: 5,
-            planet_radius_km,
-        },
-        ImmutableLayerSetParams {
-            resolution,
-            start_height_km: 50.0,
-            cell_height_km: 10.0,
-            material_name: "granite".to_string(),
-            column_count: 10,
-            planet_radius_km,
-        },
-        ImmutableLayerSetParams {
-            resolution,
-            start_height_km: 150.0,
-            cell_height_km: 15.0,
-            material_name: "basalt".to_string(),
-            column_count: 5,
-            planet_radius_km,
-        },
-        ImmutableLayerSetParams {
-            resolution,
-            start_height_km: 225.0,
-            cell_height_km: 20.0,
-            material_name: "granite".to_string(),
-            column_count: 3,
-            planet_radius_km,
-        },
-    ]
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use h3o::Resolution;
+    use crate::energy_mass::energy_mass::EnergyMass;
+    use crate::sim_immut::layer_set_immut::default_layer_set_params_immut;
+
+    #[test]
+    fn test_thermal_gradient_fix() {
+        println!("\n🌡️ Testing Thermal Gradient Fix");
+        println!("===============================");
+
+        // Create immutable simulation with default geological layers
+        let config = SimulationConfigImmut {
+            steps: 1,
+            years_per_step: 1000.0,
+            warmup_steps: 0,
+            surface_temp_k: 288.15, // 15°C surface temperature
+            layer_set_params: default_layer_set_params_immut(Resolution::Three, 6371.0),
+        };
+
+        let mut components: Vec<Box<dyn SimComponent>> = vec![];
+        let sim = SimulationImmut::new(config, &mut components);
+
+        // Check that thermal gradients are working correctly
+        println!("🔍 Checking thermal gradients in each layer set:");
+
+        for (layer_idx, layer_set) in sim.layer_sets.iter().enumerate() {
+            if let Some((_, column)) = layer_set.layers.iter().next() {
+                if let (Some(first_cell), Some(last_cell)) = (column.cells.first(), column.cells.last()) {
+                    let first_temp = first_cell.temperature_kelvin();
+                    let last_temp = last_cell.temperature_kelvin();
+
+                    println!("   Layer {}: {:.1}K → {:.1}K ({:.1}°C → {:.1}°C)",
+                             layer_idx, first_temp, last_temp,
+                             first_temp - 273.15, last_temp - 273.15);
+
+                    // Verify temperatures are reasonable with 0.5 K/km gradients
+                    if layer_idx == 0 {
+                        // Layer 0: 288K + 0.5K/km * 25km = 300.5K max
+                        assert!(first_temp > 280.0, "Layer 0 first cell too cold: {:.1}K", first_temp);
+                        assert!(first_temp < 320.0, "Layer 0 first cell too hot: {:.1}K", first_temp);
+                        assert!(last_temp > 290.0, "Layer 0 last cell too cold: {:.1}K", last_temp);
+                        assert!(last_temp < 330.0, "Layer 0 last cell too hot: {:.1}K", last_temp);
+                    } else {
+                        // Deeper layers should have moderate temperatures (not 1.0K)
+                        assert!(first_temp > 250.0, "Layer {} first cell too cold: {:.1}K", layer_idx, first_temp);
+                        assert!(first_temp < 500.0, "Layer {} first cell too hot: {:.1}K", layer_idx, first_temp);
+                        assert!(last_temp > 250.0, "Layer {} last cell too cold: {:.1}K", layer_idx, last_temp);
+                        assert!(last_temp < 600.0, "Layer {} last cell too hot: {:.1}K", layer_idx, last_temp);
+                    }
+
+                    // Temperature should increase with depth within each layer
+                    assert!(last_temp >= first_temp, "Temperature should increase with depth in layer {}", layer_idx);
+                }
+            }
+        }
+
+        println!("✅ Thermal gradient fix verified!");
+        println!("   - All layers have realistic temperatures");
+        println!("   - No more 1.0K temperatures in deep layers");
+        println!("   - Temperature increases with depth as expected");
+    }
+
+    fn get_layer_name(layer_idx: usize) -> &'static str {
+        match layer_idx {
+            0 => "Crust",
+            1 => "Upper Mantle",
+            2 => "Lower Mantle",
+            3 => "Asthenosphere",
+            _ => "Unknown Layer",
+        }
+    }
 }

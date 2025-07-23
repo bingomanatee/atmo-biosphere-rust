@@ -1,7 +1,8 @@
-use atmo_biosphere_rust::sim_immut::simulation_immut::{SimulationImmut, SimulationConfigImmut, default_immutable_layer_set_params};
+use atmo_biosphere_rust::sim_immut::simulation_immut::{SimulationImmut, SimulationConfigImmut};
 use atmo_biosphere_rust::component::SimComponent;
 use atmo_biosphere_rust::energy_mass::energy_mass::EnergyMass;
 use h3o::Resolution;
+use atmo_biosphere_rust::sim_immut::layer_set_immut::default_layer_set_params_immut;
 
 fn main() {
     println!("🌍 Immutable Simulation Test");
@@ -14,7 +15,7 @@ fn main() {
         years_per_step: 10000.0, // 10,000 years per step
         warmup_steps: 0,
         surface_temp_k: 288.15, // 15°C surface temperature
-        layer_set_params: default_immutable_layer_set_params(Resolution::Two, 6371.0),
+        layer_set_params: default_layer_set_params_immut(Resolution::Two, 6371.0),
     };
 
     // Create components (disabled for now - requires component trait adaptation)

@@ -79,6 +79,8 @@ impl EnergyMassCellImmut {
     
     /// Create a new cell with modified temperature (immutable constructor pattern)
     pub fn with_temperature(&self, new_temperature_kelvin: f64) -> Self {
+        // Temperature change applied via immutable pattern
+
         // Determine phase at new temperature and current pressure
         let new_phase = Self::determine_phase_at_conditions_static(
             &self.material_name, new_temperature_kelvin, self.pressure_pa
@@ -101,8 +103,8 @@ impl EnergyMassCellImmut {
 
         // Calculate new energy based on new temperature and mass: E = m * c * T
         let new_energy_joules = new_mass_kg * new_material.specific_heat_capacity_j_per_kg_k as f64 * new_temperature_kelvin;
-        
-        Self {
+
+        let new_cell = Self {
             cell_index: self.cell_index,
             energy_joules: new_energy_joules,
             mass_kg: new_mass_kg,
@@ -115,7 +117,11 @@ impl EnergyMassCellImmut {
             phase_transition_energy_bank: 0.0,
             planet_radius_km: self.planet_radius_km,
             conductivity_w_m_k: 0.0,
-        }
+        };
+
+        // Return new cell with updated temperature
+
+        new_cell
     }
 
     /// Create a new cell with modified mass (immutable constructor pattern)
@@ -140,16 +146,25 @@ impl EnergyMassCellImmut {
 
     /// Create a new cell with modified pressure (immutable constructor pattern)
     pub fn with_pressure(&self, new_pressure_pa: f64) -> Self {
+        // Preserve current temperature when pressure changes
+        let current_temperature = self.temperature_kelvin();
+
         // Recalculate mass based on new pressure
         let new_mass_kg = self.material_properties().calculate_mass_from_pressure_volume(MassCalculationParams {
             pressure_pa: new_pressure_pa,
             volume_km3: self.volume_km3(),
-            temperature_k: self.temperature_kelvin(),
+            temperature_k: current_temperature,
         });
-        
-        Self {
+
+        // Recalculate energy to maintain the same temperature: E = m * c * T
+        let material = self.material_properties();
+        let new_energy_joules = new_mass_kg * material.specific_heat_capacity_j_per_kg_k as f64 * current_temperature;
+
+        // Energy recalculated to preserve temperature during pressure change
+
+        let new_cell = Self {
             cell_index: self.cell_index,
-            energy_joules: self.energy_joules,
+            energy_joules: new_energy_joules,
             mass_kg: new_mass_kg,
             material_name: self.material_name.clone(),
             material_phase: self.material_phase,
@@ -157,6 +172,42 @@ impl EnergyMassCellImmut {
             top_km: self.top_km,
             bottom_km: self.bottom_km,
             pressure_pa: new_pressure_pa,
+            phase_transition_energy_bank: self.phase_transition_energy_bank,
+            planet_radius_km: self.planet_radius_km,
+            conductivity_w_m_k: 0.0, // Invalidate conductivity cache
+        };
+
+        // Return new cell with preserved temperature
+
+        new_cell
+    }
+
+    /// Recalculate mass to fill area based on current pressure and temperature (initialization only)
+    pub fn recalculate_mass_to_fill_area(&self) -> Self {
+        let current_temperature = self.temperature_kelvin();
+        let current_pressure = self.pressure_pa;
+
+        // Recalculate mass to properly fill the cell's volume based on density at current P&T
+        let material = self.material_properties();
+        let final_mass_kg = material.calculate_mass_from_pressure_volume(MassCalculationParams {
+            pressure_pa: current_pressure,
+            volume_km3: self.volume_km3(),
+            temperature_k: current_temperature,
+        });
+
+        // Recalculate energy to maintain current temperature with final mass: E = m * c * T
+        let final_energy_joules = final_mass_kg * material.specific_heat_capacity_j_per_kg_k as f64 * current_temperature;
+
+        Self {
+            cell_index: self.cell_index,
+            energy_joules: final_energy_joules,
+            mass_kg: final_mass_kg,
+            material_name: self.material_name.clone(),
+            material_phase: self.material_phase,
+            height_km: self.height_km,
+            top_km: self.top_km,
+            bottom_km: self.bottom_km,
+            pressure_pa: self.pressure_pa,
             phase_transition_energy_bank: self.phase_transition_energy_bank,
             planet_radius_km: self.planet_radius_km,
             conductivity_w_m_k: 0.0, // Invalidate conductivity cache

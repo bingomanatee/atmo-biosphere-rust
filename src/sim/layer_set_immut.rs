@@ -19,7 +19,7 @@ pub struct ColumnImmut {
 
 /// Parameters for creating an immutable layer set
 #[derive(Debug, Clone)]
-pub struct ImmutableLayerSetParams {
+pub struct LayerSetParamsImmut {
     pub resolution: Resolution,
     pub start_height_km: f64,
     pub cell_height_km: f64,
@@ -30,7 +30,7 @@ pub struct ImmutableLayerSetParams {
 
 impl LayerSetImmut {
     /// Create a new immutable layer set
-    pub fn new(params: ImmutableLayerSetParams) -> Self {
+    pub fn new(params: LayerSetParamsImmut) -> Self {
         let mut layers = HashMap::new();
         
         // Generate H3 cells at the specified resolution
