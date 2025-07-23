@@ -3,14 +3,11 @@ use crate::sim::Simulation;
 use crate::sim::energy_mass_cell::EnergyMassCell;
 use crate::energy_mass::energy_mass::EnergyMass;
 use crate::material::material::MassCalculationParams;
-use crate::utils::h3_utils::H3Utils;
 use crate::constants::GRAVITY_M_S2;
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
 use h3o::CellIndex;
 use rayon::prelude::*;
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
 
 
 
@@ -426,7 +423,7 @@ impl ConvectionPlumeComponent {
             } else {
                 // Find the closest existing cell
                 let mut closest_cell = None;
-                let mut min_distance = f64::INFINITY;
+                let min_distance = f64::INFINITY;
 
                 // For now, just return the first available cell as a fallback
                 // TODO: Implement proper distance calculation when H3 API is clarified
@@ -774,8 +771,8 @@ impl ConvectionPlumeComponent {
                                 layer_set_idx,
                                 cell_index,
                                 cell_idx,
-                                cell.clone(),
-                                upper_cell.clone(),
+                                cell,
+                                upper_cell,
                                 layer_height_km,
                                 total_cells_in_layer,
                             ));
@@ -884,7 +881,7 @@ impl ConvectionPlumeComponent {
             let cell_data = if let Some(layer_set) = sim.layer_sets.get(layer_set_idx) {
                 if let Some(column) = layer_set.layers.get(&h3_cell_index) {
                     if let Some(cell) = column.cells.get(cell_idx) {
-                        Some((cell.clone(), layer_set_idx, h3_cell_index, buoyancy_info))
+                        Some((cell, layer_set_idx, h3_cell_index, buoyancy_info))
                     } else { None }
                 } else { None }
             } else { None };

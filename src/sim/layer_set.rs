@@ -1,6 +1,5 @@
 use crate::constants::{GRAVITY_M_S2, KM2_TO_M2_CONVERSION, REFERENCE_PRESSURE_PA};
 use crate::energy_mass::energy_mass::EnergyMass;
-use crate::material::MaterialPhases;
 use crate::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
 use crate::utils::h3_utils::H3Utils;
 use h3o::{CellIndex, Resolution};

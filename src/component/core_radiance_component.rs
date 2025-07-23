@@ -854,7 +854,7 @@ impl CoreRadianceComponent {
 
     /// Create a plume from a hotspot with concentrated energy
     fn create_hotspot_plume(&self, sim: &mut Simulation, hotspot: &Hotspot, energy_joules: f64, radius_km: f64) -> u64 {
-        use crate::utils::h3_utils::H3Utils;
+        
 
         // Get hotspot geographic location
         let lat_lng = h3o::LatLng::from(hotspot.cell_index);

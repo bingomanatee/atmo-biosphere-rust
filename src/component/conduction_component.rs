@@ -179,7 +179,7 @@ impl ConductionComponent {
         for (layer_idx, layer_set) in sim.layer_sets.iter().enumerate() {
             for (cell_index, column) in layer_set.layers.iter() {
                 for (cell_idx, cell) in column.cells.iter().enumerate() {
-                    all_cells.push((layer_idx, cell_idx, *cell_index, cell.clone()));
+                    all_cells.push((layer_idx, cell_idx, *cell_index, cell));
                 }
             }
         }
@@ -249,7 +249,7 @@ impl ConductionComponent {
         for (layer_idx, layer_set) in sim.layer_sets.iter().enumerate() {
             for (cell_index, column) in layer_set.layers.iter() {
                 for (cell_idx, cell) in column.cells.iter().enumerate() {
-                    all_cells.push((layer_idx, cell_idx, *cell_index, cell.clone()));
+                    all_cells.push((layer_idx, cell_idx, *cell_index, cell));
                 }
             }
         }

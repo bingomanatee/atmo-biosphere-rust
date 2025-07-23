@@ -136,7 +136,7 @@ impl TransactionManager {
 
     /// Transaction regulation with optional root cause analysis for debugging
     pub fn validate_and_regulate_transactions_with_debug(&mut self, years_per_step: f64, enable_root_cause: bool) -> Vec<Transaction> {
-        use rayon::prelude::*;
+        
 
         // 1. Determine cell load (parallel)
         let cell_loads = self.determine_cell_loads();

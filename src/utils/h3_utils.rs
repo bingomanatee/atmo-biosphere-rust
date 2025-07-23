@@ -161,7 +161,7 @@ impl H3Utils {
         // H3 edge lengths scale by approximately sqrt(7) between resolutions
         // Base edge length at resolution 0 is approximately 1107.712 km on Earth
         let earth_base_edge_km = 1107.712;
-        let scale_factor = (planet_radius_km / EARTH_RADIUS_KM);
+        let scale_factor = planet_radius_km / EARTH_RADIUS_KM;
         let resolution_scale = 7.0_f64.powf(-(resolution as u8 as f64) / 2.0);
 
         earth_base_edge_km * scale_factor * resolution_scale

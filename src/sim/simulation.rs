@@ -702,7 +702,7 @@ impl Simulation {
     /// Apply layer-specific thermal gradients to each layer set
     /// Each layer set has its own thermal gradient (25, 15, 10, 5 K/km)
     fn apply_thermal_gradient_across_all_layers(&mut self) {
-        use crate::energy_mass::energy_mass::EnergyMass;
+        
 
         println!("🌡️ Applying layer-specific thermal gradients...");
 

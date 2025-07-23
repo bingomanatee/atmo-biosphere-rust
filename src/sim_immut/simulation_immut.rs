@@ -1,11 +1,8 @@
 use crate::component::SimComponent;
-use crate::energy_mass::energy_mass::EnergyMass;
 use crate::events::EventEmitter;
 use crate::sim_immut::layer_set_immut::{LayerSetImmut, LayerSetParamsImmut};
 use crate::sim::transaction_manager::{CellLocation, Transaction, TransactionManager};
-use crate::sim_immut::energy_mass_cell_immut::EnergyMassCellImmut;
 use std::collections::HashMap;
-use h3o::{CellIndex, Resolution};
 
 /// Immutable simulation configuration
 #[derive(Clone)]
