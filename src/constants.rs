@@ -1,4 +1,5 @@
 pub const EARTH_RADIUS_KM: i32 = 6372;
+pub const EARTH_RADIUS_KM_F64: f64 = 6372.0;
 pub const RHO_EARTH: f64 = 4.5; // g/cm³
 
 // Pressure constants
@@ -16,6 +17,7 @@ pub const KM3_TO_M3: f64 = 1.0e9;
 pub const TO_KELVIN: f64 = 273.15;
 pub const KM_TO_M: f64 = 1000.0;
 pub const KM2_TO_M2: f64 = 1_000_000.0;
+pub const DEFAULT_SURFACE_TEMP_K: f64 = 288.0;
 
 // Gravity and pressure calculation constants
 pub const GRAVITY_M_S2: f64 = 9.81; // Standard Earth gravity acceleration (m/s²)

@@ -1,5 +1,5 @@
 pub mod sim;
-// pub mod immutable;  // TODO: Fix compilation issues
+pub mod sim_immut;
 pub mod component;
 pub mod events;
 

@@ -22,13 +22,9 @@ pub struct Simulation {
     pub config: SimulationConfig,
     components: HashMap<&'static str, Box<dyn SimComponent>>,
     pub layer_sets: Vec<LayerSet>,
-    /// Global plume storage - plumes can be created by any component
     pub plumes: Vec<crate::component::convection_plume_component::ConvectionPlume>,
-    /// Next plume ID for unique identification
     pub next_plume_id: u64,
-    /// Transaction manager for coordinated mass/energy transfers
     pub transaction_manager: TransactionManager,
-    /// Event emitter for decoupled monitoring and logging
     pub event_emitter: EventEmitter,
 }
 

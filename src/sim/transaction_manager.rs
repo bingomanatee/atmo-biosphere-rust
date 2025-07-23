@@ -559,6 +559,20 @@ impl TransactionManager {
     pub fn get_transaction_stats(&self) -> (usize, usize) {
         (self.pending_transactions.len(), self.transaction_journal.len())
     }
+
+    /// Get transaction journal for analysis
+    pub fn get_transaction_journal(&self) -> &Vec<Transaction> {
+        &self.transaction_journal
+    }
+
+    /// Get committed transactions for a specific step (for immutable simulation)
+    pub fn get_committed_transactions_for_step(&self, step: i64) -> Vec<Transaction> {
+        self.transaction_journal
+            .iter()
+            .filter(|tx| tx.step_id == step)
+            .cloned()
+            .collect()
+    }
 }
 
 impl Default for TransactionManager {

@@ -1,19 +1,20 @@
-use crate::sim::immutable_energy_mass_cell::{ImmutableEnergyMassCell, ImmutableEnergyMassCellProps};
+use crate::sim::energy_mass_cell_immut::{EnergyMassCellImmut, EnergyMassCellImmutProps};
+use crate::energy_mass::energy_mass::EnergyMass;
 use h3o::{CellIndex, Resolution};
 use std::collections::HashMap;
 
 /// Immutable Layer Set - uses immutable energy/mass cells for better performance
 #[derive(Debug, Clone)]
-pub struct ImmutableLayerSet {
-    pub layers: HashMap<CellIndex, ImmutableColumn>,
+pub struct LayerSetImmut {
+    pub layers: HashMap<CellIndex, ColumnImmut>,
     pub start_height_km: f64,
     pub resolution: Resolution,
 }
 
 /// Column of immutable cells
 #[derive(Debug, Clone)]
-pub struct ImmutableColumn {
-    pub cells: Vec<ImmutableEnergyMassCell>,
+pub struct ColumnImmut {
+    pub cells: Vec<EnergyMassCellImmut>,
 }
 
 /// Parameters for creating an immutable layer set
@@ -27,7 +28,7 @@ pub struct ImmutableLayerSetParams {
     pub planet_radius_km: f64,
 }
 
-impl ImmutableLayerSet {
+impl LayerSetImmut {
     /// Create a new immutable layer set
     pub fn new(params: ImmutableLayerSetParams) -> Self {
         let mut layers = HashMap::new();
@@ -55,7 +56,7 @@ impl ImmutableLayerSet {
                 // Use default temperature - will be set properly in thermal gradient pass
                 let temperature_kelvin = 300.0; // Default temperature, will be overridden
                 
-                let cell = ImmutableEnergyMassCell::new(ImmutableEnergyMassCellProps {
+                let cell = EnergyMassCellImmut::new(EnergyMassCellImmutProps {
                     cell_index: *cel_id,
                     height_km: params.cell_height_km,
                     top_km,
@@ -68,10 +69,10 @@ impl ImmutableLayerSet {
                 cells.push(cell);
             }
             
-            layers.insert(*cel_id, ImmutableColumn { cells });
+            layers.insert(*cel_id, ColumnImmut { cells });
         }
         
-        ImmutableLayerSet {
+        LayerSetImmut {
             layers,
             start_height_km: params.start_height_km,
             resolution: params.resolution,
@@ -97,10 +98,10 @@ impl ImmutableLayerSet {
                 new_cells.push(new_cell);
             }
             
-            new_layers.insert(*h3_cell, ImmutableColumn { cells: new_cells });
+            new_layers.insert(*h3_cell, ColumnImmut { cells: new_cells });
         }
         
-        ImmutableLayerSet {
+        LayerSetImmut {
             layers: new_layers,
             start_height_km: self.start_height_km,
             resolution: self.resolution,
@@ -133,10 +134,10 @@ impl ImmutableLayerSet {
                 running_mass_per_km2 += estimated_mass_kg / (area_km2 * 1e6); // Convert to kg/m²
             }
             
-            new_layers.insert(*h3_cell, ImmutableColumn { cells: new_cells });
+            new_layers.insert(*h3_cell, ColumnImmut { cells: new_cells });
         }
         
-        ImmutableLayerSet {
+        LayerSetImmut {
             layers: new_layers,
             start_height_km: self.start_height_km,
             resolution: self.resolution,
@@ -144,7 +145,7 @@ impl ImmutableLayerSet {
     }
     
     /// Estimate cell mass at given pressure (helper method)
-    fn estimate_cell_mass_at_pressure(&self, cell: &ImmutableEnergyMassCell, pressure_pa: f64) -> f64 {
+    fn estimate_cell_mass_at_pressure(&self, cell: &EnergyMassCellImmut, pressure_pa: f64) -> f64 {
         use crate::material::material::MassCalculationParams;
         use crate::energy_mass::energy_mass::EnergyMass;
         
@@ -193,14 +194,14 @@ impl ImmutableLayerSet {
     }
 }
 
-impl ImmutableColumn {
+impl ColumnImmut {
     /// Get cell at specific depth index
-    pub fn get_cell(&self, depth_index: usize) -> Option<&ImmutableEnergyMassCell> {
+    pub fn get_cell(&self, depth_index: usize) -> Option<&EnergyMassCellImmut> {
         self.cells.get(depth_index)
     }
     
     /// Get mutable cell at specific depth index
-    pub fn get_cell_mut(&mut self, depth_index: usize) -> Option<&mut ImmutableEnergyMassCell> {
+    pub fn get_cell_mut(&mut self, depth_index: usize) -> Option<&mut EnergyMassCellImmut> {
         self.cells.get_mut(depth_index)
     }
 }

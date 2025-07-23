@@ -1,10 +1,11 @@
+use std::sync::Arc;
 use crate::material::material::MaterialPhase;
 
 pub trait EnergyMass {
     fn energy_joules(&self) -> f64;
     fn mass_kg(&self) -> f64;
     fn volume_km3(&self) -> f64;
-    fn material(&self) -> MaterialPhase;
+    fn material(&self) -> Arc<MaterialPhase>;
     fn temperature_kelvin(&self) -> f64;
     fn pressure_pa(&self) -> f64;
 

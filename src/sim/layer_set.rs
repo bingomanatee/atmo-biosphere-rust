@@ -1,11 +1,11 @@
+use crate::constants::{GRAVITY_M_S2, KM2_TO_M2_CONVERSION, REFERENCE_PRESSURE_PA};
 use crate::energy_mass::energy_mass::EnergyMass;
-use h3o::{CellIndex, Resolution};
-use std::collections::HashMap;
 use crate::material::MaterialPhases;
 use crate::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
 use crate::utils::h3_utils::H3Utils;
-use crate::constants::{GRAVITY_M_S2, REFERENCE_PRESSURE_PA, KM2_TO_M2_CONVERSION};
+use h3o::{CellIndex, Resolution};
 use rayon::prelude::*;
+use std::collections::HashMap;
 
 pub struct Column {
     pub cell_index: CellIndex,
@@ -17,7 +17,7 @@ pub struct LayerSet {
     pub layers: HashMap<CellIndex, Column>,
     pub resolution: Resolution,
     pub start_height_km: f64,
-    pub thermal_gradient_k_per_km: f64
+    pub thermal_gradient_k_per_km: f64,
 }
 
 #[derive(Clone)]
@@ -29,9 +29,62 @@ pub struct LayerSetParams {
     pub cells_per_column: usize,
     pub planet_radius_km: f64,
     pub thermal_gradient_k_per_km: f64,
-    pub name: String
+    pub name: String,
 }
 
+pub struct DefaultLayerSetParams {
+    pub resolution: Resolution,
+    pub planet_radius_km: f64,
+}
+
+pub fn default_layer_set_params(dls_params: &DefaultLayerSetParams) -> Vec<LayerSetParams> {
+    let DefaultLayerSetParams {
+        resolution,
+        planet_radius_km,
+    } = *dls_params;
+    vec![
+        LayerSetParams {
+            name: "Crust".to_string(),
+            resolution,
+            start_height_km: 0.0,
+            cell_height_km: 5.0,
+            material_name: "basalt".to_string(),
+            cells_per_column: 5,
+            planet_radius_km,
+            thermal_gradient_k_per_km: 25.0,
+        },
+        LayerSetParams {
+            name: "Upper Mantle".to_string(),
+            resolution,
+            start_height_km: 50.0,
+            cell_height_km: 10.0,
+            material_name: "granite".to_string(),
+            cells_per_column: 10,
+            planet_radius_km,
+            thermal_gradient_k_per_km: 15.0,
+        },
+        LayerSetParams {
+            name: "Lower Mantle".to_string(),
+            resolution,
+            start_height_km: 150.0,
+            cell_height_km: 15.0,
+            material_name: "basalt".to_string(),
+            cells_per_column: 5,
+            planet_radius_km,
+            thermal_gradient_k_per_km: 0.4,
+        },
+        LayerSetParams {
+            name: "Asthenosphere".to_string(),
+            resolution,
+            start_height_km: 225.0,
+            cell_height_km: 20.0,
+            material_name: "granite".to_string(),
+            cells_per_column: 3,
+            planet_radius_km,
+            thermal_gradient_k_per_km: 0.8,
+        },
+    ]
+}
 impl LayerSet {
     pub fn new(params: &LayerSetParams, start_temperature: f64) -> Self {
         // Collect all cell IDs first to enable parallelization
@@ -51,7 +104,8 @@ impl LayerSet {
                         let cell_center_depth_km = top_km + params.cell_height_km / 2.0;
 
                         // Use default temperature - will be set properly in thermal gradient pass
-                        let temperature_kelvin = start_temperature + cell_center_depth_km * params.thermal_gradient_k_per_km; // Default temperature, will be overridden
+                        let temperature_kelvin = start_temperature
+                            + cell_center_depth_km * params.thermal_gradient_k_per_km; // Default temperature, will be overridden
 
                         EnergyMassCell::new(EnergyMassCellProps {
                             cell_index: cel_id,
@@ -79,7 +133,7 @@ impl LayerSet {
             layers,
             resolution: params.resolution,
             start_height_km: params.start_height_km,
-            thermal_gradient_k_per_km: params.thermal_gradient_k_per_km
+            thermal_gradient_k_per_km: params.thermal_gradient_k_per_km,
         }
     }
 
@@ -118,7 +172,8 @@ impl LayerSet {
             for cell in column.cells.iter_mut() {
                 // Calculate pressure from all mass above this cell
                 // Convert mass per km² to mass per m², then multiply by gravity
-                let pressure_from_above = (column_accumulated_mass_per_km2 / KM2_TO_M2_CONVERSION) * GRAVITY_M_S2;
+                let pressure_from_above =
+                    (column_accumulated_mass_per_km2 / KM2_TO_M2_CONVERSION) * GRAVITY_M_S2;
 
                 // Add atmospheric pressure at surface
                 let total_pressure = REFERENCE_PRESSURE_PA + pressure_from_above;
@@ -131,8 +186,15 @@ impl LayerSet {
                 cell.set_pressure_pa(total_pressure);
 
                 // CRITICAL FIX: Actually apply the estimated mass to the cell (immutable pattern)
-                let new_cell_with_mass = crate::sim::energy_mass_cell::EnergyMassCell::with_mass(cell, estimated_mass_kg);
-                let new_cell_with_pressure = crate::sim::energy_mass_cell::EnergyMassCell::with_pressure(&new_cell_with_mass, total_pressure);
+                let new_cell_with_mass = crate::sim::energy_mass_cell::EnergyMassCell::with_mass(
+                    cell,
+                    estimated_mass_kg,
+                );
+                let new_cell_with_pressure =
+                    crate::sim::energy_mass_cell::EnergyMassCell::with_pressure(
+                        &new_cell_with_mass,
+                        total_pressure,
+                    );
                 *cell = new_cell_with_pressure;
 
                 // Add this cell's estimated mass to the accumulation for cells below
@@ -144,9 +206,9 @@ impl LayerSet {
 
     /// Estimate cell mass at a given pressure without circular dependency
     fn estimate_cell_mass_at_pressure(cell: &EnergyMassCell, pressure_pa: f64) -> f64 {
-        use crate::material::materials_loader::MaterialsLoader;
-        use crate::material::material::MassCalculationParams;
         use crate::material::MaterialPhases;
+        use crate::material::material::MassCalculationParams;
+        use crate::material::materials_loader::MaterialsLoader;
 
         // Get cell properties
         let volume_km3 = cell.area() * cell.height_km;
@@ -164,7 +226,9 @@ impl LayerSet {
         // Get material properties for solid phase (most conservative estimate)
         // Use a default material name since we can't access the private field
         let material_name = "basalt"; // Default to basalt for geological simulations
-        if let Ok(material) = MaterialsLoader::get_phase_properties(material_name, MaterialPhases::Solid) {
+        if let Ok(material) =
+            MaterialsLoader::get_phase_properties(material_name, MaterialPhases::Solid)
+        {
             let params = MassCalculationParams {
                 pressure_pa,
                 volume_km3,
@@ -176,6 +240,37 @@ impl LayerSet {
             // Fallback: use typical mantle density
             let typical_density_kg_m3 = 3300.0;
             volume_km3 * 1e9 * typical_density_kg_m3
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::constants::EARTH_RADIUS_KM;
+    use crate::sim::layer_set::{DefaultLayerSetParams, LayerSet, default_layer_set_params};
+    use crate::energy_mass::energy_mass::EnergyMass;
+    use h3o::Resolution;
+
+    #[test]
+    fn test_default_layer_set_params() {
+        let start_temp = 288.0;
+        let mut temp = start_temp;
+
+        for params in default_layer_set_params(&DefaultLayerSetParams {
+            resolution: Resolution::Zero,
+            planet_radius_km: EARTH_RADIUS_KM as f64,
+        }) {
+            let layer_set = LayerSet::new(&params, start_temp);
+            if let Some(first_index) = layer_set.layers.keys().next().cloned() {
+                if let Some(first_column) = layer_set.layers.get(&first_index) {
+                    for cell in &first_column.cells {
+                        println!("temp: {}, mass: {}",
+                            cell.temperature_kelvin(),
+                            cell.mass_kg()
+                        );
+                    }
+                }
+            }
         }
     }
 }

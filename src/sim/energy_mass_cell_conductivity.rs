@@ -32,7 +32,7 @@ impl EnergyMassCell {
             thermal_expansivity_per_k,
             bulk_modulus_pa,
             ..
-        } = material;
+        } = *material;
 
         // Calculate pressure difference and clamp it for stability
         let pressure_difference = self.pressure_pa - REFERENCE_PRESSURE_PA;

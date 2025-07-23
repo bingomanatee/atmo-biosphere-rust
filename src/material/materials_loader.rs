@@ -2,23 +2,23 @@ use crate::material::material::{Material, MaterialPhase, MaterialPhases};
 use crate::utils::json_parser::JsonParser;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock, Arc};
 
 /// Global cache for loaded materials
-static MATERIALS_CACHE: OnceLock<Mutex<HashMap<String, Material>>> = OnceLock::new();
+static MATERIALS_CACHE: OnceLock<Mutex<HashMap<String, Arc<Material>>>> = OnceLock::new();
 
 /// Materials loader that provides access to material properties from JSON data
 pub struct MaterialsLoader;
 
 impl MaterialsLoader {
     /// Load all materials from the materials.json file
-    pub fn load_materials() -> Result<HashMap<String, Material>, String> {
+    pub fn load_materials() -> Result<HashMap<String, Arc<Material>>, String> {
         // Check if materials are already cached
         let cache = MATERIALS_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
         {
             let cached_materials = cache.lock().unwrap();
             if !cached_materials.is_empty() {
-                return Ok(cached_materials.clone());
+                return Ok(cached_materials.clone()); // Now cloning Arc references, not data
             }
         }
 
@@ -28,13 +28,19 @@ impl MaterialsLoader {
         // Parse materials from JSON
         let materials = Self::parse_materials_from_json(&json)?;
         
+        // Convert to Arc when caching
+        let arc_materials: HashMap<String, Arc<Material>> = materials
+            .into_iter()
+            .map(|(k, v)| (k, Arc::new(v)))
+            .collect();
+        
         // Cache the materials
         {
             let mut cached_materials = cache.lock().unwrap();
-            *cached_materials = materials.clone();
+            *cached_materials = arc_materials.clone();
         }
         
-        Ok(materials)
+        Ok(arc_materials)
     }
 
     /// Parse materials from JSON Value
@@ -222,7 +228,7 @@ impl MaterialsLoader {
 
     /// Get phase properties for a specific material and phase
     /// Returns the MaterialPhase if found, or an error if the material or phase doesn't exist
-    pub fn get_phase_properties(material_name: &str, phase: MaterialPhases) -> Result<MaterialPhase, String> {
+    pub fn get_phase_properties(material_name: &str, phase: MaterialPhases) -> Result<Arc<MaterialPhase>, String> {
         let materials = Self::load_materials()?;
         
         let material = materials.get(material_name)
@@ -236,7 +242,7 @@ impl MaterialsLoader {
         
         phase_properties
             .ok_or_else(|| format!("Phase '{}' not found for material '{}'", phase.as_str(), material_name))
-            .map(|p| p.clone())
+            .map(|p| Arc::new(p.clone())) // Only clone once when creating Arc
     }
 
     /// Get all available material names
@@ -293,8 +299,7 @@ impl MaterialsLoader {
 
 /// Convenience function to get phase properties by name and phase string
 /// Converts string phase names ("solid", "liquid", "gas") to MaterialPhases enum
-pub fn get_phase_properties_by_name(material_name: &str, phase_name: &str) -> Result<MaterialPhase, String> {
-    // Convert string to MaterialPhases enum
+pub fn get_phase_properties_by_name(material_name: &str, phase_name: &str) -> Result<Arc<MaterialPhase>, String> {
     let phase = match phase_name.to_lowercase().as_str() {
         "solid" => MaterialPhases::Solid,
         "liquid" => MaterialPhases::Liquid,

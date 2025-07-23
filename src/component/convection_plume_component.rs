@@ -1402,8 +1402,10 @@ impl Default for ConvectionPlumeComponent {
 
 #[cfg(test)]
 mod tests {
+    use crate::constants::{DEFAULT_SURFACE_TEMP_K, EARTH_RADIUS_KM};
     use super::*;
     use crate::material::MaterialPhase;
+    use crate::sim::layer_set::{default_layer_set_params, DefaultLayerSetParams};
 
     #[test]
     fn test_mass_transfer_pressure_imbalance() {
@@ -1614,32 +1616,35 @@ mod tests {
         // This test demonstrates that we calculate ACTUAL overhead mass
         // from cells above, not from pressure (which was wrong when cells had zero mass)
 
-        use crate::sim::simulation::{Simulation, SimulationConfig, ThermalGradientConfig};
+        use crate::sim::simulation::{Simulation, SimulationConfig};
         use crate::sim::layer_set::LayerSetParams;
         use h3o::Resolution;
 
         // Create a simple 2-layer simulation
-        let thermal_config = ThermalGradientConfig::earth_like(288.15);
         let config = SimulationConfig {
+            surface_temp_k: 288.15,
             layer_set_params: vec![
                 LayerSetParams {
+                    name: "Upper Layer".to_string(),
                     resolution: Resolution::Two,
                     start_height_km: 0.0,
                     cell_height_km: 50.0,
                     material_name: "basalt".to_string(),
                     cells_per_column: 2, // 2 cells per column
                     planet_radius_km: 6371.0,
+                    thermal_gradient_k_per_km: 25.0,
                 },
                 LayerSetParams {
+                    name: "Lower Layer".to_string(),
                     resolution: Resolution::Two,
                     start_height_km: 100.0, // Will be adjusted to 100km
                     cell_height_km: 50.0,
                     material_name: "basalt".to_string(),
                     cells_per_column: 2, // 2 cells per column
                     planet_radius_km: 6371.0,
+                    thermal_gradient_k_per_km: 10.0,
                 },
             ],
-            thermal_config,
             warmup_steps: 0,
             steps: 1,
             years_per_step: 1000.0,
@@ -1693,27 +1698,20 @@ mod tests {
         // 1. First pass: Calculate mass from density × volume (uncompressed)
         // 2. Second pass: Adjust for compression based on overhead mass
 
-        use crate::sim::simulation::{Simulation, SimulationConfig, ThermalGradientConfig};
+        use crate::sim::simulation::{Simulation, SimulationConfig};
         use crate::sim::layer_set::LayerSetParams;
         use h3o::Resolution;
 
         // Create a simple 2-layer simulation
-        let thermal_config = ThermalGradientConfig::earth_like(288.15);
         let config = SimulationConfig {
-            layer_set_params: vec![
-                LayerSetParams {
-                    resolution: Resolution::Two,
-                    start_height_km: 0.0,
-                    cell_height_km: 50.0,
-                    material_name: "basalt".to_string(),
-                    cells_per_column: 2, // 2 cells per column
-                    planet_radius_km: 6371.0,
-                },
-            ],
-            thermal_config,
+            layer_set_params: default_layer_set_params( &DefaultLayerSetParams {
+                resolution: Resolution::One,
+                planet_radius_km: EARTH_RADIUS_KM as f64,
+            }),
             warmup_steps: 0,
             steps: 1,
             years_per_step: 1000.0,
+            surface_temp_k: DEFAULT_SURFACE_TEMP_K,
         };
 
         let mut components: Vec<Box<dyn crate::component::SimComponent>> = vec![];
@@ -1838,7 +1836,7 @@ mod tests {
 
     #[test]
     fn test_simulation_with_profiling() {
-        use crate::sim::simulation::{Simulation, SimulationConfig, ThermalGradientConfig};
+        use crate::sim::simulation::{Simulation, SimulationConfig};
         use crate::sim::layer_set::LayerSetParams;
         use h3o::Resolution;
 
@@ -1846,24 +1844,17 @@ mod tests {
         println!("=================================================");
 
         // Create a minimal simulation configuration
-        let thermal_config = ThermalGradientConfig::earth_like(288.15);
-        let layer_params = vec![
-            LayerSetParams {
-                resolution: Resolution::Two, // Low resolution for speed
-                start_height_km: 0.0,
-                cell_height_km: 10.0,
-                material_name: "basalt".to_string(),
-                cells_per_column: 5, // Just 5 columns for speed
-                planet_radius_km: 6371.0,
-            }
-        ];
+        let layer_params = default_layer_set_params(&DefaultLayerSetParams {
+            resolution: Resolution::One,
+            planet_radius_km: EARTH_RADIUS_KM as f64,
+        });
 
         let config = SimulationConfig {
             steps: 5, // Just 5 steps
             years_per_step: 1000.0,
             warmup_steps: 0,
-            layer_set_params: layer_params,
-            thermal_config,
+            layer_set_params: vec![layer_params[0].clone()],
+            surface_temp_k: DEFAULT_SURFACE_TEMP_K,
         };
 
         // Create components
@@ -2024,57 +2015,28 @@ mod tests {
 #[cfg(test)]
 mod convection_simulation_tests {
     use super::*;
-    use crate::sim::simulation::{Simulation, SimulationConfig, ThermalGradientConfig};
-    use crate::sim::layer_set::LayerSetParams;
+    use crate::sim::simulation::{Simulation, SimulationConfig};
+    use crate::sim::layer_set::{default_layer_set_params, DefaultLayerSetParams, LayerSetParams};
     use h3o::Resolution;
+    use crate::constants::{DEFAULT_SURFACE_TEMP_K, EARTH_RADIUS_KM_F64};
 
     /// Test configuration for multi-layer convection simulations
     fn create_test_simulation_config() -> SimulationConfig {
-        // Create realistic thermal configuration for crust-to-asthenosphere
-        let thermal_config = ThermalGradientConfig {
-            surface_temperature_k: 288.15,      // 15°C surface temperature
-            surface_gradient_k_per_km: 25.0,    // 25K/km in crust (realistic)
-            deep_gradient_k_per_km: 10.0,       // 10K/km in asthenosphere (lower)
-            reference_depth_km: 100.0,          // Transition at 100km depth
-        };
-
+  
         // Create realistic crust-to-asthenosphere layer sets (0-300km)
-        let layer_params = vec![
-            // Crust (0-50km)
-            LayerSetParams {
-                resolution: Resolution::Four,
-                start_height_km: 0.0,
-                cell_height_km: 10.0,           // 10km thick cells
-                material_name: "basalt".to_string(),
-                cells_per_column: 5,                // 5 cells = 50km total
+        let layer_params = default_layer_set_params(
+            &DefaultLayerSetParams {
+                resolution: Resolution::Two,
                 planet_radius_km: 6371.0,
-            },
-            // Upper Mantle/Lithosphere (50-150km)
-            LayerSetParams {
-                resolution: Resolution::Four,
-                start_height_km: 50.0,
-                cell_height_km: 20.0,           // 20km thick cells
-                material_name: "basalt".to_string(),
-                cells_per_column: 5,                // 5 cells = 100km total
-                planet_radius_km: 6371.0,
-            },
-            // Asthenosphere (150-300km)
-            LayerSetParams {
-                resolution: Resolution::Four,
-                start_height_km: 150.0,
-                cell_height_km: 30.0,           // 30km thick cells
-                material_name: "basalt".to_string(),
-                cells_per_column: 5,                // 5 cells = 150km total
-                planet_radius_km: 6371.0,
-            },
-        ];
+            }
+        );
 
         SimulationConfig {
             steps: 3,                           // Only 3 steps for fast testing with larger stack
             years_per_step: 1000.0,            // 1000 years per step
             warmup_steps: 0,
             layer_set_params: layer_params,
-            thermal_config,
+            surface_temp_k: DEFAULT_SURFACE_TEMP_K
         }
     }
 
@@ -2430,42 +2392,20 @@ mod convection_simulation_tests {
         println!("\n⚡ Testing Fast Geological Simulation with Performance Profiling");
         println!("================================================================");
 
-        // Create a faster configuration with lower resolution
-        let thermal_config = ThermalGradientConfig {
-            surface_temperature_k: 288.15,      // 15°C surface temperature
-            surface_gradient_k_per_km: 25.0,    // 25K/km in crust (realistic)
-            deep_gradient_k_per_km: 10.0,       // 10K/km in asthenosphere (lower)
-            reference_depth_km: 100.0,          // Transition at 100km depth
-        };
-
         // Create layer sets with lower resolution for speed
-        let layer_params = vec![
-            // Crust (0-50km)
-            LayerSetParams {
-                resolution: Resolution::Two,     // Lower resolution for speed
-                start_height_km: 0.0,
-                cell_height_km: 10.0,           // 10km thick cells
-                material_name: "basalt".to_string(),
-                cells_per_column: 3,                // Only 3 cells = 30km total
-                planet_radius_km: 6371.0,
-            },
-            // Upper Mantle/Lithosphere (50-100km)
-            LayerSetParams {
-                resolution: Resolution::Two,     // Lower resolution for speed
-                start_height_km: 50.0,
-                cell_height_km: 20.0,           // 20km thick cells
-                material_name: "basalt".to_string(),
-                cells_per_column: 3,                // Only 3 cells = 60km total
-                planet_radius_km: 6371.0,
-            },
-        ];
+        let layer_params = default_layer_set_params(
+            &DefaultLayerSetParams {
+                resolution: Resolution::Zero,
+                planet_radius_km: EARTH_RADIUS_KM_F64,
+            }
+        );
 
         let config = SimulationConfig {
             steps: 2,                           // Only 2 steps for speed
             years_per_step: 1000.0,            // 1000 years per step
             warmup_steps: 0,
             layer_set_params: layer_params,
-            thermal_config,
+            surface_temp_k: DEFAULT_SURFACE_TEMP_K,
         };
 
         println!("📋 Fast Simulation Configuration:");
@@ -2516,39 +2456,20 @@ mod convection_simulation_tests {
         println!("\n🧵 Testing Threaded vs Sequential Performance Comparison");
         println!("========================================================");
 
-        // Create the same configuration for both tests
-        let thermal_config = ThermalGradientConfig {
-            surface_temperature_k: 288.15,
-            surface_gradient_k_per_km: 25.0,
-            deep_gradient_k_per_km: 10.0,
-            reference_depth_km: 100.0,
-        };
-
-        let layer_params = vec![
-            LayerSetParams {
-                resolution: Resolution::Two,
-                start_height_km: 0.0,
-                cell_height_km: 10.0,
-                material_name: "basalt".to_string(),
-                cells_per_column: 3,
-                planet_radius_km: 6371.0,
-            },
-            LayerSetParams {
-                resolution: Resolution::Two,
-                start_height_km: 50.0,
-                cell_height_km: 20.0,
-                material_name: "basalt".to_string(),
-                cells_per_column: 3,
-                planet_radius_km: 6371.0,
-            },
-        ];
+        let layer_params = default_layer_set_params(
+            &DefaultLayerSetParams {
+                resolution: Resolution::One,
+                planet_radius_km: EARTH_RADIUS_KM_F64,
+            }
+        );
 
         let config = SimulationConfig {
             steps: 2,
             years_per_step: 1000.0,
             warmup_steps: 0,
             layer_set_params: layer_params,
-            thermal_config,
+
+            surface_temp_k: DEFAULT_SURFACE_TEMP_K,
         };
 
         // Test 1: Sequential (high threshold)
@@ -2622,39 +2543,20 @@ mod convection_simulation_tests {
         println!("\n🔄 Testing Separated Conduction and Plume Components");
         println!("===================================================");
 
-        // Create the same configuration
-        let thermal_config = ThermalGradientConfig {
-            surface_temperature_k: 288.15,
-            surface_gradient_k_per_km: 25.0,
-            deep_gradient_k_per_km: 10.0,
-            reference_depth_km: 100.0,
-        };
-
-        let layer_params = vec![
-            LayerSetParams {
-                resolution: Resolution::Two,
-                start_height_km: 0.0,
-                cell_height_km: 10.0,
-                material_name: "basalt".to_string(),
-                cells_per_column: 3,
-                planet_radius_km: 6371.0,
-            },
-            LayerSetParams {
-                resolution: Resolution::Two,
-                start_height_km: 50.0,
-                cell_height_km: 20.0,
-                material_name: "basalt".to_string(),
-                cells_per_column: 3,
-                planet_radius_km: 6371.0,
-            },
-        ];
+        let layer_params = default_layer_set_params(
+            &DefaultLayerSetParams {
+                resolution: Resolution::One,
+                planet_radius_km: EARTH_RADIUS_KM_F64,
+            }
+        );
 
         let config = SimulationConfig {
             steps: 2,
             years_per_step: 1000.0,
             warmup_steps: 0,
             layer_set_params: layer_params,
-            thermal_config,
+            
+             surface_temp_k: DEFAULT_SURFACE_TEMP_K,
         };
 
         println!("📋 Configuration: {} steps, {} layer sets", config.steps, config.layer_set_params.len());
@@ -2695,40 +2597,21 @@ mod convection_simulation_tests {
 
         println!("\n🔥 Testing Exponential Upwells → Plume Formation");
         println!("================================================");
+        
 
-        // Create configuration for upwell testing
-        let thermal_config = ThermalGradientConfig {
-            surface_temperature_k: 288.15,
-            surface_gradient_k_per_km: 25.0,
-            deep_gradient_k_per_km: 10.0,
-            reference_depth_km: 100.0,
-        };
-
-        let layer_params = vec![
-            LayerSetParams {
-                resolution: Resolution::Two,
-                start_height_km: 0.0,
-                cell_height_km: 10.0,
-                material_name: "basalt".to_string(),
-                cells_per_column: 3,
-                planet_radius_km: 6371.0,
-            },
-            LayerSetParams {
-                resolution: Resolution::Two,
-                start_height_km: 50.0,
-                cell_height_km: 20.0,
-                material_name: "basalt".to_string(),
-                cells_per_column: 3,
-                planet_radius_km: 6371.0,
-            },
-        ];
+        let layer_params =  default_layer_set_params(
+            &DefaultLayerSetParams {
+                resolution: Resolution::One,
+                planet_radius_km: EARTH_RADIUS_KM_F64,
+            }
+        );  
 
         let config = SimulationConfig {
             steps: 3,
             years_per_step: 1000.0,
             warmup_steps: 0,
             layer_set_params: layer_params,
-            thermal_config,
+            surface_temp_k: DEFAULT_SURFACE_TEMP_K,
         };
 
         println!("📋 Configuration: {} steps, exponential upwell amplification enabled", config.steps);

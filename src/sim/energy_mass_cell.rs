@@ -1,7 +1,7 @@
+use std::sync::Arc;
 use crate::energy_mass::energy_mass::EnergyMass;
 use crate::material::material::MassCalculationParams;
 use crate::material::{MaterialPhase, MaterialPhases, MaterialsLoader};
-use crate::sim::simulation::SimulationState::Paused;
 use crate::utils::h3_utils::H3Utils;
 use h3o::CellIndex;
 
@@ -44,7 +44,7 @@ pub struct EnergyMassCellProps {
 }
 
 impl EnergyMassCell {
-    fn get_material_phase(&self) -> Result<MaterialPhase, String> {
+    fn get_material_phase(&self) -> Result<Arc<MaterialPhase>, String> {
         MaterialsLoader::get_phase_properties(&self.material_name, self.material_phase)
     }
 
@@ -497,7 +497,7 @@ impl EnergyMass for EnergyMassCell {
         self.area() * self.height_km
     }
 
-    fn material(&self) -> MaterialPhase {
+    fn material(&self) -> Arc<MaterialPhase> {
         MaterialsLoader::get_phase_properties(&self.material_name, self.material_phase)
             .unwrap_or_else(|e| panic!("Failed to get material phase: {}", e))
     }

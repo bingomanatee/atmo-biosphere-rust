@@ -15,7 +15,7 @@ fn main() {
         // Crust: 0-50km (10 layers × 5km each)
         LayerSetParams {
             name: "Crust".to_string(),
-            resolution: Resolution::Three,   // Increased by one level
+            resolution: Resolution::Two,   // Increased by one level
             start_height_km: 0.0,
             cell_height_km: 5.0,             // 5km crust layers
             material_name: "basalt".to_string(),
@@ -69,7 +69,7 @@ fn main() {
     let mut components: Vec<Box<dyn SimComponent>> = vec![
         Box::new(CoreRadianceComponent::new()),      // Energy input from core
         Box::new(ConductionComponent::new()),        // Heat transfer (slower via material modifier)
-        Box::new(ConvectionPlumeComponent::with_seed(42)), // Hotspot energy transport (preserves sources)
+       // Box::new(ConvectionPlumeComponent::with_seed(42)), // Hotspot energy transport (preserves sources)
     ];
 
     let mut sim = Simulation::new(config, &mut components);

@@ -1,17 +1,19 @@
+use std::sync::Arc;
 use crate::material::materials_loader::MaterialsLoader;
 use crate::material::material::{MaterialPhase, MassCalculationParams};
+use crate::material::MaterialPhases;
 use crate::energy_mass::energy_mass::EnergyMass;
 use h3o::CellIndex;
 
 /// Immutable Energy/Mass Cell - constructor-based approach for better performance
 /// Instead of mutating cells in-place, create new cells with modified properties
 #[derive(Debug, Clone)]
-pub struct ImmutableEnergyMassCell {
+pub struct EnergyMassCellImmut {
     pub cell_index: CellIndex,
     pub energy_joules: f64,
     pub mass_kg: f64,
     pub material_name: String,
-    pub material_phase: MaterialPhase,
+    pub material_phase: MaterialPhases,
     pub height_km: f64,
     pub top_km: f64,
     pub bottom_km: f64,
@@ -23,7 +25,7 @@ pub struct ImmutableEnergyMassCell {
 
 /// Properties for creating a new ImmutableEnergyMassCell
 #[derive(Debug, Clone)]
-pub struct ImmutableEnergyMassCellProps {
+pub struct EnergyMassCellImmutProps {
     pub cell_index: CellIndex,
     pub height_km: f64,
     pub top_km: f64,
@@ -33,37 +35,33 @@ pub struct ImmutableEnergyMassCellProps {
     pub planet_radius_km: f64,
 }
 
-impl ImmutableEnergyMassCell {
+impl EnergyMassCellImmut {
     /// Create a new immutable energy/mass cell
-    pub fn new(props: ImmutableEnergyMassCellProps) -> Self {
+    pub fn new(props: EnergyMassCellImmutProps) -> Self {
         let bottom_km = props.top_km + props.height_km;
         let volume_km3 = Self::calculate_volume_km3(props.cell_index, props.height_km, props.planet_radius_km);
-        
-        // Load material properties
-        let material = MaterialsLoader::get_material_properties(&props.material_name)
-            .expect("Failed to load material properties");
         
         // Determine phase at given conditions
         let material_phase = Self::determine_phase_at_conditions_static(
             &props.material_name, props.temperature_kelvin, props.pressure_pa
         );
-        
+
         // Get phase-specific material properties
         let phase_material = MaterialsLoader::get_phase_properties(&props.material_name, material_phase)
             .expect("Failed to load phase-specific material properties");
-        
+
         // Calculate mass using reference temperature for consistency
-        let reference_temperature_k = 300.0; // Use 300K as reference for mass calculation
+        let reference_temperature_k = 300.0;
         let mass_kg = phase_material.calculate_mass_from_pressure_volume(MassCalculationParams {
             pressure_pa: props.pressure_pa,
             volume_km3,
-            temperature_k: reference_temperature_k, // Use reference temp, not actual temp
+            temperature_k: reference_temperature_k,
         });
-        
+
         // Calculate energy based on actual temperature and mass
         let energy_joules = mass_kg * phase_material.specific_heat_capacity_j_per_kg_k as f64 * props.temperature_kelvin;
         
-        ImmutableEnergyMassCell {
+        EnergyMassCellImmut {
             cell_index: props.cell_index,
             energy_joules,
             mass_kg,
@@ -75,25 +73,23 @@ impl ImmutableEnergyMassCell {
             pressure_pa: props.pressure_pa,
             phase_transition_energy_bank: 0.0,
             planet_radius_km: props.planet_radius_km,
-            conductivity_w_m_k: 0.0, // Will be computed on first access
+            conductivity_w_m_k: 0.0,
         }
     }
     
     /// Create a new cell with modified temperature (immutable constructor pattern)
     pub fn with_temperature(&self, new_temperature_kelvin: f64) -> Self {
-        // Calculate new energy based on new temperature: E = m * c * T
-        let material = self.material_properties();
-        let new_energy_joules = self.mass_kg * material.specific_heat_capacity_j_per_kg_k as f64 * new_temperature_kelvin;
-        
         // Determine phase at new temperature and current pressure
         let new_phase = Self::determine_phase_at_conditions_static(
             &self.material_name, new_temperature_kelvin, self.pressure_pa
         );
         
+        // Get material properties for the new phase
+        let new_material = MaterialsLoader::get_phase_properties(&self.material_name, new_phase)
+            .expect("Failed to load material properties for new phase");
+        
         // Calculate new mass if phase changed
         let new_mass_kg = if new_phase != self.material_phase {
-            let new_material = MaterialsLoader::get_phase_properties(&self.material_name, new_phase)
-                .expect("Failed to load material properties for new phase");
             new_material.calculate_mass_from_pressure_volume(MassCalculationParams {
                 pressure_pa: self.pressure_pa,
                 volume_km3: self.volume_km3(),
@@ -102,6 +98,9 @@ impl ImmutableEnergyMassCell {
         } else {
             self.mass_kg
         };
+
+        // Calculate new energy based on new temperature and mass: E = m * c * T
+        let new_energy_joules = new_mass_kg * new_material.specific_heat_capacity_j_per_kg_k as f64 * new_temperature_kelvin;
         
         Self {
             cell_index: self.cell_index,
@@ -113,9 +112,9 @@ impl ImmutableEnergyMassCell {
             top_km: self.top_km,
             bottom_km: self.bottom_km,
             pressure_pa: self.pressure_pa,
-            phase_transition_energy_bank: 0.0, // Reset energy bank for new cell
+            phase_transition_energy_bank: 0.0,
             planet_radius_km: self.planet_radius_km,
-            conductivity_w_m_k: 0.0, // Invalidate conductivity cache
+            conductivity_w_m_k: 0.0,
         }
     }
 
@@ -194,17 +193,17 @@ impl ImmutableEnergyMassCell {
     }
 
     /// Helper method to determine phase at conditions
-    fn determine_phase_at_conditions_static(material_name: &str, temperature_k: f64, pressure_pa: f64) -> MaterialPhase {
-        let material = MaterialsLoader::get_material_properties(material_name)
-            .expect("Failed to load material properties");
-        
-        // Simple phase determination logic
-        if temperature_k > material.melting_point_k as f64 {
-            MaterialPhase::Liquid
-        } else if temperature_k > material.boiling_point_k as f64 {
-            MaterialPhase::Gas
+    fn determine_phase_at_conditions_static(material_name: &str, temperature_k: f64, _pressure_pa: f64) -> MaterialPhases {
+        // For now, use simple temperature-based phase determination
+        // TODO: Implement pressure-dependent phase transitions
+
+        // Simple phase determination logic based on typical material properties
+        if temperature_k > 1800.0 {  // Typical melting point for geological materials
+            MaterialPhases::Liquid
+        } else if temperature_k > 3000.0 {  // Typical boiling point
+            MaterialPhases::Gas
         } else {
-            MaterialPhase::Solid
+            MaterialPhases::Solid
         }
     }
 
@@ -213,14 +212,19 @@ impl ImmutableEnergyMassCell {
         Self::calculate_volume_km3(self.cell_index, self.height_km, self.planet_radius_km)
     }
 
+    /// Get area in km²
+    pub fn area(&self) -> f64 {
+        self.cell_index.area_km2()
+    }
+
     /// Get material properties (renamed to avoid conflict with trait method)
-    pub fn material_properties(&self) -> crate::material::material::Material {
+    pub fn material_properties(&self) -> Arc<crate::material::material::MaterialPhase> {
         MaterialsLoader::get_phase_properties(&self.material_name, self.material_phase)
             .expect("Failed to load material properties")
     }
 }
 
-impl EnergyMass for ImmutableEnergyMassCell {
+impl EnergyMass for EnergyMassCellImmut {
     fn energy_joules(&self) -> f64 {
         self.energy_joules
     }
@@ -233,8 +237,9 @@ impl EnergyMass for ImmutableEnergyMassCell {
         self.volume_km3()
     }
 
-    fn material(&self) -> crate::material::material::MaterialPhase {
-        self.material_phase
+    fn material(&self) -> Arc<MaterialPhase> {
+        MaterialsLoader::get_phase_properties(&self.material_name, self.material_phase)
+            .expect("Failed to load material properties")
     }
 
     fn temperature_kelvin(&self) -> f64 {

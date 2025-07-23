@@ -580,10 +580,27 @@ impl CoreRadianceComponent {
                 // Calculate Perlin-modulated energy using normalized 3D coordinates
                 let energy_to_add = self.calculate_energy_for_cell(cell_index, cell_x, cell_y, cell_z, years_per_step, DEFAULT_PLANET_RADIUS_KM);
 
-                // Apply energy to the deepest cell in each column using pending energy system
-                if let Some(deepest_cell) = column.cells.last_mut() {
-                    // Add energy change to pending delta for later application by simulation
-                    deepest_cell.add_pending_energy_change(energy_to_add);
+                // Apply energy to the deepest cell in each column using transaction system
+                if let Some(_deepest_cell) = column.cells.last() {
+                    // Create transaction for energy injection
+                    let cell_location = crate::sim::transaction_manager::CellLocation::new(
+                        deepest_layer_idx,
+                        *cell_index,
+                        column.cells.len() - 1, // Last cell index
+                    );
+
+                    let transaction = crate::sim::transaction_manager::Transaction {
+                        source: "CoreRadiance".to_string(),
+                        source_cell: cell_location.clone(),
+                        target_cell: None, // Absolute energy injection
+                        energy_delta_joules: energy_to_add,
+                        mass_delta_kg: 0.0, // Core radiance doesn't add mass
+                        description: format!("Core radiance energy injection: {:.2e}J", energy_to_add),
+                        step_id: 0, // Will be set by transaction manager
+                    };
+
+                    // Propose transaction to simulation
+                    sim.transaction_manager.propose_transaction(transaction);
 
                     total_energy_added += energy_to_add;
                     cells_affected += 1;
@@ -1149,6 +1166,8 @@ impl Default for CoreRadianceComponent {
 
 #[cfg(test)]
 mod tests {
+    use crate::constants::{EARTH_RADIUS_KM, EARTH_RADIUS_KM_F64};
+    use crate::sim::layer_set::{default_layer_set_params, DefaultLayerSetParams};
     use super::*;
 
     #[test]
@@ -1285,7 +1304,7 @@ mod tests {
 
     #[test]
     fn test_core_radiance_energy_injection() {
-        use crate::sim::simulation::{Simulation, SimulationConfig, ThermalGradientConfig};
+        use crate::sim::simulation::{Simulation, SimulationConfig};
         use crate::sim::layer_set::LayerSetParams;
         use crate::component::SimComponent;
         use crate::energy_mass::energy_mass::EnergyMass;
@@ -1293,39 +1312,13 @@ mod tests {
 
         println!("\n🔥 Testing Core Radiance Energy Injection");
         println!("==========================================");
-
-        // Create simple 2-layer configuration for focused testing
-        let thermal_config = ThermalGradientConfig {
-            surface_temperature_k: 288.15,
-            surface_gradient_k_per_km: 25.0,
-            deep_gradient_k_per_km: 10.0,
-            reference_depth_km: 50.0,
-        };
-
-        let layer_params = vec![
-            // Upper layer (0-25km)
-            LayerSetParams {
-                name: "Upper Layer".to_string(),
-                resolution: Resolution::Four,
-                start_height_km: 0.0,
-                cell_height_km: 25.0,
-                material_name: "basalt".to_string(),
-                cells_per_column: 1, // Single cell for simplicity
-                planet_radius_km: 6371.0,
-                thermal_gradient_k_per_km: 25.0,
-            },
-            // Deep layer (25-50km) - will receive core radiance
-            LayerSetParams {
-                name: "Deep Layer".to_string(),
-                resolution: Resolution::Four,
-                start_height_km: 25.0,
-                cell_height_km: 25.0,
-                material_name: "basalt".to_string(),
-                cells_per_column: 1, // Single cell for simplicity
-                planet_radius_km: 6371.0,
-                thermal_gradient_k_per_km: 10.0,
-            },
-        ];
+        
+        let layer_params = default_layer_set_params(
+            &DefaultLayerSetParams {
+                resolution: Resolution::One,
+                planet_radius_km: EARTH_RADIUS_KM_F64,
+            }
+        );
 
         let config = SimulationConfig {
             steps: 3,
@@ -1388,9 +1381,21 @@ mod tests {
 
         // Run simulation for 3 steps
         for step in 0..3 {
+            println!("   Running step {}...", step + 1);
             sim_with_radiance.step();
             let step_deep_energy = calculate_layer_total_energy(&sim_with_radiance, 1);
             println!("   Step {}: Deep layer energy = {:.2e} J", step + 1, step_deep_energy);
+
+            // Check if any pending energy changes exist
+            let mut total_pending = 0.0;
+            if let Some(deepest_layer) = sim_with_radiance.layer_sets.last() {
+                for column in deepest_layer.layers.values() {
+                    for cell in &column.cells {
+                        total_pending += cell.pending_energy_change();
+                    }
+                }
+            }
+            println!("   Total pending energy after step {}: {:.2e} J", step + 1, total_pending);
         }
 
         let final_upper_energy_rad = calculate_layer_total_energy(&sim_with_radiance, 0);
