@@ -354,6 +354,150 @@ mod tests {
         println!("   - Temperature increases with depth as expected");
     }
 
+    #[test]
+    fn test_geological_layers_reality_check() {
+        println!("\n🌍 Geological Layers Reality Check");
+        println!("==================================");
+
+        // Create immutable simulation with default geological layers
+        let config = SimulationConfigImmut {
+            steps: 1,
+            years_per_step: 1000.0,
+            warmup_steps: 0,
+            surface_temp_k: 288.15, // 15°C surface temperature
+            layer_set_params: default_layer_set_params_immut(Resolution::Three, 6371.0),
+        };
+
+        let mut components: Vec<Box<dyn SimComponent>> = vec![];
+        let sim = SimulationImmut::new(config, &mut components);
+
+        // Get the first H3 cell for consistent analysis
+        let first_h3_cell = sim.layer_sets[0].layers.keys().next().copied()
+            .expect("Should have at least one H3 cell");
+
+        println!("📍 Analyzing H3 cell: {}", first_h3_cell);
+        println!("🌍 Planet radius: 6371.0 km");
+        println!();
+
+        let mut cumulative_depth_km = 0.0;
+        let mut total_mass_kg = 0.0;
+        let mut total_energy_j = 0.0;
+
+        // Header for the table
+        println!("{:<12} {:<8} {:<12} {:<12} {:<12} {:<12} {:<12} {:<12} {:<12} {:<8} {:<8}",
+                 "Layer", "Cell", "Depth(km)", "Temp(K)", "Temp(°C)", "Mass/km²", "Energy/km²", "Pressure(Pa)", "Density", "Phase", "Material");
+        println!("{}", "=".repeat(150));
+
+        // Walk through each layer set and all its cells
+        for (layer_idx, layer_set) in sim.layer_sets.iter().enumerate() {
+            let layer_name = get_layer_name(layer_idx);
+
+            // Get the column for our target H3 cell
+            if let Some(column) = layer_set.layers.get(&first_h3_cell) {
+                // Walk through each cell in the column (top to bottom)
+                for (cell_idx, cell) in column.cells.iter().enumerate() {
+                    let cell_depth_km = cumulative_depth_km + (cell_idx as f64 * sim.config.layer_set_params[layer_idx].cell_height_km);
+                    let temp_k = cell.temperature_kelvin();
+                    let temp_c = temp_k - 273.15;
+                    let mass_kg = cell.mass_kg();
+                    let pressure_pa = cell.pressure_pa();
+                    let phase = format!("{:?}", cell.material_phase);
+                    let material = &sim.config.layer_set_params[layer_idx].material_name;
+
+                    println!("{:<12} {:<8} {:<12.1} {:<12.1} {:<12.1} {:<12.2e} {:<12.2e} {:<8} {:<8}",
+                             layer_name, cell_idx, cell_depth_km, temp_k, temp_c, mass_kg, pressure_pa, phase, material);
+
+                    // Accumulate totals
+                    total_mass_kg += mass_kg;
+                    total_energy_j += cell.energy_joules();
+
+                    // Reality checks for each cell
+                    assert!(temp_k > 200.0, "Temperature too low: {:.1}K at depth {:.1}km", temp_k, cell_depth_km);
+                    assert!(temp_k < 2000.0, "Temperature too high: {:.1}K at depth {:.1}km", temp_k, cell_depth_km);
+                    assert!(mass_kg > 1e15, "Mass too low: {:.2e}kg", mass_kg);
+                    assert!(mass_kg < 1e30, "Mass too high: {:.2e}kg", mass_kg);
+                    assert!(pressure_pa > 1e4, "Pressure too low: {:.2e}Pa", pressure_pa);
+                }
+
+                // Update cumulative depth for next layer
+                let layer_thickness = column.cells.len() as f64 * sim.config.layer_set_params[layer_idx].cell_height_km;
+                cumulative_depth_km += layer_thickness;
+            }
+        }
+
+        println!("{}", "=".repeat(120));
+        println!("📊 Summary Statistics:");
+        println!("   - Total depth analyzed: {:.1} km", cumulative_depth_km);
+        println!("   - Total mass in column: {:.2e} kg", total_mass_kg);
+        println!("   - Total energy in column: {:.2e} J", total_energy_j);
+        println!("   - Average mass per cell: {:.2e} kg", total_mass_kg / sim.total_cells() as f64);
+        println!("   - Average energy per cell: {:.2e} J", total_energy_j / sim.total_cells() as f64);
+
+        // Layer-by-layer summary
+        println!("\n🏔️  Layer Set Summary:");
+        for (layer_idx, layer_set) in sim.layer_sets.iter().enumerate() {
+            if let Some(column) = layer_set.layers.get(&first_h3_cell) {
+                let first_cell = &column.cells[0];
+                let last_cell = &column.cells[column.cells.len() - 1];
+                let layer_mass: f64 = column.cells.iter().map(|c| c.mass_kg()).sum();
+                let layer_energy: f64 = column.cells.iter().map(|c| c.energy_joules()).sum();
+                let avg_density = layer_mass / (column.cells.len() as f64 * first_cell.volume_km3() * 1e9); // kg/m³
+
+                println!("   Layer {}: {} ({} cells)", layer_idx, get_layer_name(layer_idx), column.cells.len());
+                println!("      Temperature: {:.1}K to {:.1}K ({:.1}°C to {:.1}°C)",
+                         first_cell.temperature_kelvin(), last_cell.temperature_kelvin(),
+                         first_cell.temperature_kelvin() - 273.15, last_cell.temperature_kelvin() - 273.15);
+                println!("      Pressure: {:.2e} to {:.2e} Pa", first_cell.pressure_pa(), last_cell.pressure_pa());
+                println!("      Total mass: {:.2e} kg", layer_mass);
+                println!("      Total energy: {:.2e} J", layer_energy);
+                println!("      Average density: {:.0} kg/m³", avg_density);
+                println!("      Material: {}", sim.config.layer_set_params[layer_idx].material_name);
+                println!("      Thermal gradient: {:.1} K/km", sim.config.layer_set_params[layer_idx].thermal_gradient_k_per_km);
+            }
+        }
+
+        // Geological reality checks
+        println!("\n✅ Geological Reality Checks:");
+
+        // Check temperature gradients are reasonable
+        let surface_temp = sim.layer_sets[0].layers[&first_h3_cell].cells[0].temperature_kelvin();
+        let deep_temp = sim.layer_sets.last().unwrap().layers[&first_h3_cell].cells.last().unwrap().temperature_kelvin();
+        let overall_gradient = (deep_temp - surface_temp) / cumulative_depth_km;
+        println!("   - Overall thermal gradient: {:.2} K/km (should be ~0.5 K/km)", overall_gradient);
+        assert!(overall_gradient > 0.3 && overall_gradient < 0.7, "Overall gradient should be ~0.5 K/km, got {:.2}", overall_gradient);
+
+        // Check pressure increases with depth
+        let surface_pressure = sim.layer_sets[0].layers[&first_h3_cell].cells[0].pressure_pa();
+        let deep_pressure = sim.layer_sets.last().unwrap().layers[&first_h3_cell].cells.last().unwrap().pressure_pa();
+        println!("   - Pressure increase: {:.2e} Pa to {:.2e} Pa", surface_pressure, deep_pressure);
+        assert!(deep_pressure > surface_pressure * 100.0, "Deep pressure should be much higher than surface");
+
+        // Check mass increases with depth (due to compression)
+        let surface_mass = sim.layer_sets[0].layers[&first_h3_cell].cells[0].mass_kg();
+        let deep_mass = sim.layer_sets.last().unwrap().layers[&first_h3_cell].cells.last().unwrap().mass_kg();
+        println!("   - Mass increase: {:.2e} kg to {:.2e} kg", surface_mass, deep_mass);
+        assert!(deep_mass > surface_mass, "Deep cells should have higher mass due to compression");
+
+        // Check all materials are in solid phase (with our gentle gradients)
+        let mut all_solid = true;
+        for layer_set in &sim.layer_sets {
+            if let Some(column) = layer_set.layers.get(&first_h3_cell) {
+                for cell in &column.cells {
+                    if !matches!(cell.material_phase, crate::material::MaterialPhases::Solid) {
+                        all_solid = false;
+                        break;
+                    }
+                }
+            }
+        }
+        println!("   - All materials in solid phase: {}", if all_solid { "✅ Yes" } else { "❌ No" });
+        assert!(all_solid, "All materials should be solid with 0.5 K/km gradients");
+
+        println!("   ✅ All geological patterns are realistic!");
+        println!("   ✅ Temperature, pressure, and mass increase appropriately with depth");
+        println!("   ✅ Materials remain in solid phase as expected");
+    }
+
     fn get_layer_name(layer_idx: usize) -> &'static str {
         match layer_idx {
             0 => "Crust",

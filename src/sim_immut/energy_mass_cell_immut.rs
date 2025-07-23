@@ -243,19 +243,55 @@ impl EnergyMassCellImmut {
         area_km2 * height_km
     }
 
-    /// Helper method to determine phase at conditions
-    fn determine_phase_at_conditions_static(material_name: &str, temperature_k: f64, _pressure_pa: f64) -> MaterialPhases {
-        // For now, use simple temperature-based phase determination
-        // TODO: Implement pressure-dependent phase transitions
+    /// Helper method to determine phase at conditions (pressure-dependent)
+    fn determine_phase_at_conditions_static(material_name: &str, temperature_k: f64, pressure_pa: f64) -> MaterialPhases {
+        // Get solid phase properties to determine base melting point
+        let solid_phase = MaterialsLoader::get_phase_properties(material_name, MaterialPhases::Solid)
+            .unwrap_or_else(|_| panic!("Material {} solid phase not found", material_name));
 
-        // Simple phase determination logic based on typical material properties
-        if temperature_k > 1800.0 {  // Typical melting point for geological materials
-            MaterialPhases::Liquid
-        } else if temperature_k > 3000.0 {  // Typical boiling point
+        // Calculate pressure-dependent melting point using Clausius-Clapeyron relation
+        let pressure_dependent_melting_point = Self::calculate_pressure_dependent_melting_point(
+            solid_phase.melt_temp as f64,
+            pressure_pa,
+            material_name
+        );
+
+        // Calculate pressure-dependent boiling point (simplified)
+        let pressure_dependent_boiling_point = solid_phase.boil_temp as f64 +
+            (pressure_pa - 1e5) * 1e-7; // Rough approximation for boiling point pressure dependence
+
+        // Determine phase based on pressure-adjusted transition points
+        if temperature_k > pressure_dependent_boiling_point {
             MaterialPhases::Gas
+        } else if temperature_k > pressure_dependent_melting_point {
+            MaterialPhases::Liquid
         } else {
             MaterialPhases::Solid
         }
+    }
+
+    /// Calculate pressure-dependent melting point using Clausius-Clapeyron relation
+    fn calculate_pressure_dependent_melting_point(base_melt_temp_k: f64, pressure_pa: f64, material_name: &str) -> f64 {
+        // Reference pressure (1 atmosphere = 1e5 Pa)
+        const REFERENCE_PRESSURE_PA: f64 = 1e5;
+
+        // Material-specific Clausius-Clapeyron slope (dT/dP) in K/Pa
+        // These values are approximate for geological materials
+        let dt_dp_k_per_pa = match material_name {
+            "granite" => 3.0e-8,   // Granite: ~30 K/GPa
+            "basalt" => 2.5e-8,    // Basalt: ~25 K/GPa
+            "olivine" => 2.0e-8,   // Olivine: ~20 K/GPa
+            _ => 2.5e-8,           // Default: ~25 K/GPa
+        };
+
+        // Calculate pressure difference from reference
+        let pressure_diff_pa = pressure_pa - REFERENCE_PRESSURE_PA;
+
+        // Apply Clausius-Clapeyron relation: T_melt(P) = T_melt(P0) + (dT/dP) * (P - P0)
+        let pressure_adjusted_melt_temp = base_melt_temp_k + dt_dp_k_per_pa * pressure_diff_pa;
+
+        // Ensure melting point doesn't go below absolute minimum
+        pressure_adjusted_melt_temp.max(base_melt_temp_k * 0.8)
     }
 
     /// Get volume in km³
