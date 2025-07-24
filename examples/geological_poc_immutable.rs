@@ -1,6 +1,6 @@
 use atmo_biosphere_rust::sim_immut::simulation_immut::{SimulationImmut, SimulationConfigImmut};
 use atmo_biosphere_rust::sim_immut::radiative_transfer::RadiativeTransferConfig;
-use atmo_biosphere_rust::component::{SimComponent, core_radiance_component::CoreRadianceComponent};
+use atmo_biosphere_rust::component::SimComponent;
 use atmo_biosphere_rust::energy_mass::energy_mass::EnergyMass;
 use h3o::Resolution;
 use atmo_biosphere_rust::sim_immut::layer_set_immut::default_layer_set_params_immut;
@@ -135,7 +135,56 @@ fn main() {
         .sum();
     
     let total_energy_change = final_total_energy - initial_total_energy;
-    
+
+    // Comprehensive cell-by-cell thermal analysis table
+    println!("\n📊 COMPREHENSIVE CELL-BY-CELL THERMAL ANALYSIS:");
+    println!("================================================");
+    println!("| Layer | Cell | Depth | Temp(K) | Temp(°C) | Energy(J)  | Mass(kg)   | Material |");
+    println!("|-------|------|-------|---------|----------|------------|------------|----------|");
+
+    let mut total_cells = 0;
+    let mut table_total_energy = 0.0;
+    let mut total_mass = 0.0;
+
+    for (layer_idx, layer_set) in sim.layer_sets.iter().enumerate() {
+        let layer_params = &sim.config.layer_set_params[layer_idx];
+
+        // Get first column for detailed analysis
+        if let Some(first_column) = layer_set.layers.values().next() {
+            for (cell_idx, cell) in first_column.cells.iter().enumerate() {
+                let depth_km = layer_params.start_height_km +
+                              (cell_idx as f64 * layer_params.cell_height_km);
+                let temp_k = cell.temperature_kelvin();
+                let temp_c = temp_k - 273.15;
+                let energy_j = cell.energy_joules();
+                let mass_kg = cell.mass_kg();
+
+                total_cells += 1;
+                table_total_energy += energy_j;
+                total_mass += mass_kg;
+
+                println!("| {:5} | {:4} | {:5.0} | {:7.1} | {:8.1} | {:10.2e} | {:10.2e} | {:8} |",
+                         layer_idx + 1,
+                         cell_idx + 1,
+                         depth_km,
+                         temp_k,
+                         temp_c,
+                         energy_j,
+                         mass_kg,
+                         layer_params.material_name);
+            }
+
+            // Add separator between layers
+            if layer_idx < sim.layer_sets.len() - 1 {
+                println!("|-------|------|-------|---------|----------|------------|------------|----------|");
+            }
+        }
+    }
+
+    println!("|-------|------|-------|---------|----------|------------|------------|----------|");
+    println!("| TOTAL | {:4} |       |         |          | {:10.2e} | {:10.2e} |          |",
+             total_cells, table_total_energy, total_mass);
+
     println!("\n📊 Final Energy Analysis:");
     println!("   - Initial energy: {:.2e} J", initial_total_energy);
     println!("   - Final energy: {:.2e} J", final_total_energy);

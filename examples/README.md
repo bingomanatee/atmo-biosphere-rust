@@ -16,12 +16,11 @@ cargo run --example comprehensive_poc_validation
 - ✅ Performance metrics
 - ✅ Ready for heat input components
 
-### **Basic Testing Examples**
+### **Basic Testing Example**
 ```bash
-cargo run --example immutable_simulation_test
 cargo run --example geological_poc_immutable
 ```
-Simple tests of the immutable simulation system with correct layer structure.
+Simple test of the immutable simulation system with correct layer structure and core radiance.
 
 ### **Utility Examples**
 ```bash

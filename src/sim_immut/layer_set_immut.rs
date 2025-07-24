@@ -254,10 +254,10 @@ pub fn default_layer_set_params_immut(resolution: h3o::Resolution, planet_radius
             resolution,
             start_height_km: 15.0,
             cell_height_km: 10.0, // 10km cells - aspect ratio 10:60 = 1:6
-            material_name: "granite".to_string(),
-            column_count: 5,      // 5 cells = 50km (heat transport)
+            material_name: "basalt".to_string(), // Using basalt as mantle proxy (peridotite not fully defined)
+            column_count: 5,      // 5 cells = 50km (upper mantle)
             planet_radius_km,
-            thermal_gradient_k_per_km: 15.0, // Moderate gradient
+            thermal_gradient_k_per_km: 0.6, // Realistic upper mantle gradient
         },
         // Deep Layer (65-165km): Background + artificial boundary
         LayerSetParamsImmut {
@@ -267,7 +267,7 @@ pub fn default_layer_set_params_immut(resolution: h3o::Resolution, planet_radius
             material_name: "basalt".to_string(),
             column_count: 5,      // 5 cells = 100km (deep background + artificial radiance)
             planet_radius_km,
-            thermal_gradient_k_per_km: 10.0, // Low gradient, artificial radiance at bottom
+            thermal_gradient_k_per_km: 0.3, // Realistic deep mantle gradient
         },
     ]
 }

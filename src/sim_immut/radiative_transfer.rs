@@ -143,7 +143,7 @@ impl RadiativeTransfer {
                     transactions.push(Transaction {
                         source: "RadiativeTransfer".to_string(),
                         source_cell: pair.cell_b.clone(),
-                        target_cell: Some(pair.cell_a.clone()),
+                        target_cell: None, // Energy added to cell_b
                         energy_delta_joules: limited_energy,
                         mass_delta_kg: 0.0,
                         description: format!("Radiative transfer: {:.2e} J from A to B", limited_energy),
@@ -156,17 +156,17 @@ impl RadiativeTransfer {
                     transactions.push(Transaction {
                         source: "RadiativeTransfer".to_string(),
                         source_cell: pair.cell_b.clone(),
-                        target_cell: Some(pair.cell_a.clone()),
+                        target_cell: None, // Energy added to cell_b
                         energy_delta_joules: limited_energy,
                         mass_delta_kg: 0.0,
-                        description: format!("Radiative transfer: {:.2e} J from B to A", -limited_energy),
+                        description: format!("Radiative transfer: {:.2e} J from B to A", limited_energy),
                         step_id: 0,
                     });
 
                     transactions.push(Transaction {
                         source: "RadiativeTransfer".to_string(),
                         source_cell: pair.cell_a.clone(),
-                        target_cell: Some(pair.cell_b.clone()),
+                        target_cell: None, // Energy removed from cell_a
                         energy_delta_joules: -limited_energy,
                         mass_delta_kg: 0.0,
                         description: format!("Radiative transfer: {:.2e} J from B to A", -limited_energy),
