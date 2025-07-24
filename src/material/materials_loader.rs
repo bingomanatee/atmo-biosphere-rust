@@ -207,6 +207,10 @@ impl MaterialsLoader {
             bulk_modulus_pa: get_required_u64("bulk_modulus_pa")?,
             activation_energy_j_per_mol: get_optional_u32("activation_energy_j_per_mol"),
             activation_volume_m3_per_mol: get_fractional_as_u32("activation_volume_m3_per_mol", 1e9),
+            // Radiative properties for heat transfer
+            emissivity: get_optional_u32("emissivity"),
+            absorptivity: get_optional_u32("absorptivity"),
+            reflectivity: get_optional_u32("reflectivity"),
             // cool_temp fields removed - using boil_temp as maximum
         })
     }

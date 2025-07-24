@@ -1,4 +1,5 @@
 use atmo_biosphere_rust::sim_immut::simulation_immut::{SimulationImmut, SimulationConfigImmut};
+use atmo_biosphere_rust::sim_immut::radiative_transfer::RadiativeTransferConfig;
 use atmo_biosphere_rust::component::SimComponent;
 use atmo_biosphere_rust::energy_mass::energy_mass::EnergyMass;
 use h3o::Resolution;
@@ -16,6 +17,13 @@ fn main() {
         warmup_steps: 0,
         surface_temp_k: 288.15, // 15°C surface temperature
         layer_set_params: default_layer_set_params_immut(Resolution::Two, 6371.0),
+        radiative_transfer_config: RadiativeTransferConfig {
+            years_per_step: 10000.0,
+            max_transfer_rate: 0.005, // 0.5% max transfer per step
+            enable_space_radiation: true,
+            enable_inter_layer_radiation: true,
+            enable_intra_layer_radiation: false, // Disable for initial testing
+        },
     };
 
     // Create components (disabled for now - requires component trait adaptation)
