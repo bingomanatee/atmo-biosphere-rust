@@ -1,7 +1,10 @@
 use crate::component::SimComponent;
 use crate::events::EventEmitter;
 use crate::sim_immut::layer_set_immut::{LayerSetImmut, LayerSetParamsImmut};
-use crate::sim::transaction_manager::{CellLocation, Transaction, TransactionManager};
+use crate::sim_immut::binary_operations::BinaryOperationsManager;
+use crate::sim_immut::radiative_transfer::{RadiativeTransfer, RadiativeTransferConfig};
+use crate::transaction_manager::{CellLocation, Transaction, TransactionManager};
+use crate::energy_mass::energy_mass::EnergyMass;
 use std::collections::HashMap;
 
 /// Immutable simulation configuration
@@ -12,6 +15,7 @@ pub struct SimulationConfigImmut {
     pub warmup_steps: u64,
     pub layer_set_params: Vec<LayerSetParamsImmut>,
     pub surface_temp_k: f64,
+    pub radiative_transfer_config: RadiativeTransferConfig,
 }
 
 /// Immutable simulation that uses immutable layer sets for better performance
@@ -26,6 +30,7 @@ pub struct SimulationImmut {
     pub next_plume_id: u64,
     pub transaction_manager: TransactionManager,
     pub event_emitter: EventEmitter,
+    pub binary_operations: BinaryOperationsManager,
 }
 
 pub enum SimulationState {
@@ -50,11 +55,13 @@ impl SimulationImmut {
             next_plume_id: 1,
             transaction_manager: TransactionManager::new(),
             event_emitter: EventEmitter::new(),
+            binary_operations: BinaryOperationsManager::new(),
         };
         for comp in components.drain(..) {
             sim.register_box(comp);
         }
         sim.load_layer_sets();
+        sim.setup_binary_operations();
         sim
     }
 
@@ -120,15 +127,100 @@ impl SimulationImmut {
     pub fn step(&mut self) {
         self.transaction_manager.set_current_step(self.step);
 
+        println!("   🔄 Step {}: Immutable simulation step with radiative transfer", self.step + 1);
+
+        // Execute binary operations (radiative transfer, etc.)
+        self.execute_binary_operations();
+
         // TODO: Process components (requires component trait adaptation for immutable simulation)
         // For now, skip component processing to test basic immutable structure
-        println!("   🔄 Step {}: Immutable simulation step (components disabled for now)", self.step + 1);
 
         // Apply transactions to create new layer sets (immutable pattern)
         self.apply_transactions_immutably();
 
         self.step += 1;
         self.steps += 1;
+    }
+
+    /// Setup binary operations with radiative transfer
+    fn setup_binary_operations(&mut self) {
+        // Register radiative transfer operation
+        let radiative_config = self.config.radiative_transfer_config.clone();
+        self.binary_operations.register_operation(
+            "RadiativeTransfer".to_string(),
+            RadiativeTransfer::create_operation(radiative_config),
+        );
+
+        // Build neighbor pairs from current layer sets
+        self.binary_operations.build_neighbor_pairs(&self.layer_sets);
+
+        // Print statistics
+        let stats = self.binary_operations.get_statistics();
+        println!("🔗 Binary Operations Setup:");
+        println!("   - Horizontal pairs: {}", stats.get("horizontal_pairs").unwrap_or(&0));
+        println!("   - Vertical pairs: {}", stats.get("vertical_pairs").unwrap_or(&0));
+        println!("   - Surface-to-space pairs: {}", stats.get("surface_to_space_pairs").unwrap_or(&0));
+        println!("   - Total pairs: {}", stats.get("total_pairs").unwrap_or(&0));
+    }
+
+    /// Execute binary operations and collect transactions
+    fn execute_binary_operations(&mut self) {
+        let results = self.binary_operations.execute_operations();
+
+        let mut total_energy_transferred = 0.0;
+        let mut transaction_count = 0;
+
+        // Collect all transactions from binary operations
+        for result in results {
+            total_energy_transferred += result.energy_transferred_joules;
+            for transaction in result.transactions {
+                self.transaction_manager.propose_transaction(transaction);
+                transaction_count += 1;
+            }
+        }
+
+        if transaction_count > 0 {
+            println!("   ⚡ Radiative transfer: {:.2e} J across {} transactions",
+                     total_energy_transferred, transaction_count);
+        }
+    }
+
+    /// Calculate total energy across all layer sets
+    pub fn total_energy(&self) -> f64 {
+        self.layer_sets.iter()
+            .flat_map(|layer_set| layer_set.layers.values())
+            .flat_map(|column| &column.cells)
+            .map(|cell| cell.energy_joules())
+            .sum()
+    }
+
+    /// Calculate average temperature across all cells
+    pub fn average_temperature(&self) -> f64 {
+        let mut total_temp = 0.0;
+        let mut cell_count = 0;
+
+        for layer_set in &self.layer_sets {
+            for column in layer_set.layers.values() {
+                for cell in &column.cells {
+                    total_temp += cell.temperature_kelvin();
+                    cell_count += 1;
+                }
+            }
+        }
+
+        if cell_count > 0 {
+            total_temp / cell_count as f64
+        } else {
+            0.0
+        }
+    }
+
+    /// Calculate total number of cells in the simulation
+    pub fn total_cells(&self) -> usize {
+        self.layer_sets.iter()
+            .flat_map(|layer_set| layer_set.layers.values())
+            .map(|column| column.cells.len())
+            .sum()
     }
 
     /// Apply transactions to create new immutable layer sets
@@ -219,16 +311,7 @@ impl SimulationImmut {
                  transactions.len(), self.layer_sets.len());
     }
 
-    /// Get total number of cells across all layer sets
-    pub fn total_cells(&self) -> usize {
-        self.layer_sets.iter()
-            .map(|layer_set| {
-                layer_set.layers.values()
-                    .map(|column| column.cells.len())
-                    .sum::<usize>()
-            })
-            .sum()
-    }
+
 
     /// Get layer set by index
     pub fn get_layer_set(&self, index: usize) -> Option<&LayerSetImmut> {
@@ -306,6 +389,7 @@ mod tests {
             warmup_steps: 0,
             surface_temp_k: 288.15, // 15°C surface temperature
             layer_set_params: default_layer_set_params_immut(Resolution::Three, 6371.0),
+            radiative_transfer_config: RadiativeTransferConfig::default(),
         };
 
         let mut components: Vec<Box<dyn SimComponent>> = vec![];
@@ -363,6 +447,7 @@ mod tests {
             warmup_steps: 0,
             surface_temp_k: 288.15, // 15°C surface temperature
             layer_set_params: default_layer_set_params_immut(Resolution::Three, 6371.0),
+            radiative_transfer_config: RadiativeTransferConfig::default(),
         };
 
         let mut components: Vec<Box<dyn SimComponent>> = vec![];
@@ -506,10 +591,11 @@ mod tests {
 
     fn get_layer_name(layer_idx: usize) -> &'static str {
         match layer_idx {
-            0 => "Crust",
-            1 => "Upper Mantle",
-            2 => "Lower Mantle",
-            3 => "Asthenosphere",
+            0 => "Oceanic Crust",
+            1 => "Lower Crust",
+            2 => "Upper Mantle",
+            3 => "Transition Zone",
+            4 => "Lower Mantle",
             _ => "Unknown Layer",
         }
     }

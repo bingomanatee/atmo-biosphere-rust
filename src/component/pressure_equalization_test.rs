@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod pressure_equalization_tests {
     use super::*;
-    use crate::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
+    use crate::deprecated::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
     use crate::material::materials_loader::MaterialsLoader;
     use h3o::CellIndex;
 

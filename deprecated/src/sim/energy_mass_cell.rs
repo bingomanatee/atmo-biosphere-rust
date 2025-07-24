@@ -588,7 +588,7 @@ impl EnergyMass for EnergyMassCell {
         // Calculate current total energy and potential energy after addition
         let current_energy = self.energy_joules + self.phase_transition_energy_bank;
         let potential_energy = current_energy + energy_joules;
-        let potential_temp = potential_energy / (self.mass_kg * material.specific_heat_capacity_j_per_kg_k as f64);
+        let _potential_temp = potential_energy / (self.mass_kg * material.specific_heat_capacity_j_per_kg_k as f64);
 
         // If adding this energy would exceed the material's temperature capacity, cap it
         let max_energy = max_temp * self.mass_kg * material.specific_heat_capacity_j_per_kg_k as f64;

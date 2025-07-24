@@ -1,6 +1,6 @@
 use crate::component::SimComponent;
-use crate::sim::Simulation;
-use crate::sim::energy_mass_cell::EnergyMassCell;
+use crate::deprecated::sim::Simulation;
+use crate::deprecated::sim::energy_mass_cell::EnergyMassCell;
 use crate::energy_mass::energy_mass::EnergyMass;
 use crate::utils::h3_utils::H3Utils;
 use h3o::CellIndex;
@@ -74,7 +74,7 @@ impl ConductionComponent {
         let mut total_vertical_neighbors = 0;
 
         // Build horizontal neighbor cache for each layer
-        for (layer_idx, layer_set) in sim.layer_sets.iter().enumerate() {
+        for (_layer_idx, layer_set) in sim.layer_sets.iter().enumerate() {
             for (cell_index, _column) in layer_set.layers.iter() {
                 // Get horizontal neighbors (within same layer)
                 let horizontal_neighbors = H3Utils::neighbors_for(*cell_index);
@@ -95,7 +95,7 @@ impl ConductionComponent {
             let current_layer = &sim.layer_sets[layer_idx];
 
             for (cell_index, column) in current_layer.layers.iter() {
-                for cell_idx in 0..column.cells.len() {
+                for _cell_idx in 0..column.cells.len() {
                     let mut vertical_neighbors = Vec::new();
 
                     // Check adjacent layers (above and below)

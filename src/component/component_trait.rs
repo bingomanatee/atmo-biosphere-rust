@@ -1,4 +1,4 @@
-use crate::sim::Simulation;
+use crate::deprecated::sim::Simulation;
 
 pub trait SimComponent: std::any::Any + Send + Sync {
     /// A key for this component instance

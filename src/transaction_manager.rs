@@ -351,7 +351,7 @@ impl TransactionManager {
     /// Optional root cause analysis for debugging problematic runs
     fn analyze_root_causes(
         &self,
-        problematic_cells: &HashMap<CellLocation, f64>,
+        _problematic_cells: &HashMap<CellLocation, f64>,
         scaled_transactions: &[Transaction],
     ) {
         // Root cause analysis (silent by default, enable for debugging)

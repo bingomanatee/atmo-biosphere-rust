@@ -24,7 +24,10 @@ pub struct MaterialPhase {
     pub bulk_modulus_pa: f64,   // This is very large (e.g., 130000000000)
     pub activation_energy_j_per_mol: Option<f32>,
     pub activation_volume_m3_per_mol: Option<f32>,
-
+    // Radiative properties for heat transfer
+    pub emissivity: Option<f32>,
+    pub absorptivity: Option<f32>,
+    pub reflectivity: Option<f32>,
 }
 
 /// Parameters for mass calculation from pressure and volume
@@ -128,30 +131,42 @@ impl MaterialPhase {
         // Apply temperature correction to density
         // For most materials: ρ(T) = ρ₀ * (T₀/T) for gases, or ρ₀ * (1 - α*(T-T₀)) for solids/liquids
         let temperature_corrected_density = {
-            // For solids/liquids: use thermal expansivity
+            // For solids/liquids: use thermal expansivity, but reduce effect under high pressure
             let expansivity_f64 = self.thermal_expansivity_per_k as f64 / 1_000_000.0; // Convert from scaled value
             let temp_diff = safe_temperature - reference_temperature;
-            let density_factor: f64 = 1.0 - expansivity_f64 * temp_diff;
+
+            // Reduce thermal expansion under high pressure (pressure suppresses expansion)
+            let pressure_gpa = (params.pressure_pa - 101325.0).max(0.0) / 1e9;
+            let pressure_suppression = 1.0 / (1.0 + pressure_gpa * 0.5); // Reduce expansion by 50% per GPa
+            let effective_expansivity = expansivity_f64 * pressure_suppression;
+
+            let density_factor: f64 = 1.0 - effective_expansivity * temp_diff;
 
             // Ensure density doesn't become negative or unreasonably high
             let bounded_density_factor = density_factor.clamp(0.1, 10.0);
             base_density * bounded_density_factor
         };
 
-        // Account for pressure compressibility using bulk modulus
+        // Account for pressure compressibility using geological compression model
         {
-            let bulk_modulus_f64 = self.bulk_modulus_pa;
-
-            // For compressible materials, use bulk modulus to adjust density
-            // Bulk modulus K = -V * (dP/dV) ≈ ρ * (dP/dρ)
-            // For small pressure changes: ρ = ρ₀ * (1 + P/K)
             let reference_pressure = 101325.0; // Standard atmospheric pressure
-            // Clamp to geological pressure range: ~0.1 atm to deep mantle (~1e15 Pa)
-            let pressure_diff = (params.pressure_pa - reference_pressure).clamp(-90000.0, 1e15);
+            let pressure_diff = (params.pressure_pa - reference_pressure).max(0.0);
 
-            // Apply both temperature and pressure corrections
-            let density_correction = 1.0 + (pressure_diff / bulk_modulus_f64);
-            let final_density = temperature_corrected_density * density_correction.max(0.1);
+            // Use geological compression model for large pressure ranges
+            // At geological pressures, materials compress significantly more than bulk modulus predicts
+            // Use empirical compression: density increases roughly logarithmically with pressure
+            let pressure_gpa = pressure_diff / 1e9; // Convert to GPa for easier calculation
+
+            // Geological compression factor: significant density increase under geological pressures
+            let compression_factor = match self.density_kg_m3 as f64 {
+                d if d > 3200.0 => 0.25, // Dense rocks (peridotite, eclogite): 25% per GPa
+                d if d > 2800.0 => 0.20, // Medium rocks (basalt, gabbro): 20% per GPa
+                _ => 0.15, // Light rocks (granite): 15% per GPa
+            };
+
+            // Apply logarithmic compression to prevent unrealistic densities at extreme pressures
+            let pressure_compression = 1.0 + compression_factor * pressure_gpa.ln_1p();
+            let final_density = temperature_corrected_density * pressure_compression.max(1.0);
 
             final_density * volume_m3
         }

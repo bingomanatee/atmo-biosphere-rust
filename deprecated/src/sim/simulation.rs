@@ -1,8 +1,8 @@
 use crate::component::SimComponent;
 use crate::energy_mass::energy_mass::EnergyMass;
 use crate::events::EventEmitter;
-use crate::sim::layer_set::{LayerSet, LayerSetParams};
-use crate::sim::transaction_manager::{CellLocation, Transaction, TransactionManager};
+use crate::deprecated::sim::layer_set::{LayerSet, LayerSetParams};
+use crate::transaction_manager::{CellLocation, Transaction, TransactionManager};
 use std::collections::HashMap;
 
 /// Thermal gradient configuration using a quadratic model
@@ -268,7 +268,7 @@ impl Simulation {
         let mut components = std::mem::take(&mut self.components);
 
         // Each component generates transactions instead of direct changes
-        for (component_name, comp) in components.iter_mut() {
+        for (_component_name, comp) in components.iter_mut() {
             comp.step(self, step, year as i64);
         }
 
@@ -279,7 +279,7 @@ impl Simulation {
     /// Detect if hotspot-related transactions were scaled (indicating overpowered hotspots)
     fn detect_hotspot_scaling(
         &self,
-        regulated_transactions: &[crate::sim::transaction_manager::Transaction],
+        regulated_transactions: &[crate::transaction_manager::Transaction],
     ) -> bool {
         let hotspot_scaled_count = regulated_transactions
             .iter()
@@ -344,7 +344,7 @@ impl Simulation {
     }
 
     /// Get component-specific performance data (reusable)
-    pub fn get_component_performance(&self, component_name: &str) -> Option<String> {
+    pub fn get_component_performance(&self, _component_name: &str) -> Option<String> {
         None // Performance profiling disabled
     }
 
@@ -502,7 +502,7 @@ impl Simulation {
         layer: usize,
         h3_cell: h3o::CellIndex,
         depth: usize,
-    ) -> Option<&crate::sim::energy_mass_cell::EnergyMassCell> {
+    ) -> Option<&crate::deprecated::sim::energy_mass_cell::EnergyMassCell> {
         self.layer_sets
             .get(layer)?
             .layers
@@ -521,7 +521,7 @@ impl Simulation {
                 - crate::constants::REFERENCE_PRESSURE_PA)
                 / crate::constants::GRAVITY_M_S2;
 
-            let snapshot = crate::sim::transaction_manager::CellSnapshot {
+            let snapshot = crate::transaction_manager::CellSnapshot {
                 location: location.clone(),
                 mass_kg: cell.mass_kg(),
                 energy_joules: cell.energy_joules(),
@@ -536,7 +536,7 @@ impl Simulation {
     /// Record baseline snapshots of all cells for transaction validation
     fn record_baseline_snapshots(&mut self) {
         use crate::energy_mass::energy_mass::EnergyMass;
-        use crate::sim::transaction_manager::{CellLocation, CellSnapshot};
+        use crate::transaction_manager::{CellLocation, CellSnapshot};
 
         for (layer_set_index, layer_set) in self.layer_sets.iter().enumerate() {
             for (h3_cell_index, column) in &layer_set.layers {
@@ -565,10 +565,10 @@ impl Simulation {
     /// Apply regulated transactions to the simulation using 3D cell locations
     fn apply_regulated_transactions(
         &mut self,
-        transactions: &[crate::sim::transaction_manager::Transaction],
+        transactions: &[crate::transaction_manager::Transaction],
     ) {
         use crate::energy_mass::energy_mass::EnergyMass;
-        use crate::sim::transaction_manager::CellLocation;
+        use crate::transaction_manager::CellLocation;
         use std::collections::HashMap;
 
         // Group transactions by 3D cell location for efficient application
@@ -721,8 +721,8 @@ impl Simulation {
 
             let layer_start_temperature = current_temperature;
 
-            for (h3_cell, column) in &mut layer_set.layers {
-                for (depth_index, cell) in column.cells.iter_mut().enumerate() {
+            for (_h3_cell, column) in &mut layer_set.layers {
+                for (_depth_index, cell) in column.cells.iter_mut().enumerate() {
                     // Calculate depth within this layer set
                     let depth_in_layer_km =
                         cell.top_km - layer_set.start_height_km + cell.height_km / 2.0;
@@ -732,7 +732,7 @@ impl Simulation {
                         + layer_set.thermal_gradient_k_per_km * depth_in_layer_km;
 
                     // Create new cell with correct temperature (immutable pattern)
-                    let new_cell = crate::sim::energy_mass_cell::EnergyMassCell::with_temperature(
+                    let new_cell = crate::deprecated::sim::energy_mass_cell::EnergyMassCell::with_temperature(
                         cell,
                         cell_temperature,
                     );
@@ -766,8 +766,8 @@ impl Simulation {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::energy_mass::energy_mass::EnergyMass;
-    use crate::sim::layer_set::LayerSetParams;
-    use h3o::Resolution;
+    
+    
+    
+    
 }

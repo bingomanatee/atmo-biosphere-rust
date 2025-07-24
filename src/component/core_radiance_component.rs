@@ -1,5 +1,5 @@
 use crate::component::SimComponent;
-use crate::sim::Simulation;
+use crate::deprecated::sim::Simulation;
 use crate::energy_mass::energy_mass::EnergyMass;
 use noise::{NoiseFn, Perlin};
 use std::collections::hash_map::DefaultHasher;
@@ -505,18 +505,18 @@ impl CoreRadianceComponent {
 
     /// Create a new random hotspot using RadianceConfig parameters
     fn create_random_hotspot(&mut self, sim: &Simulation) {
-        use rand::thread_rng;
+        use rand::rng;
 
         // Get a random cell from the deepest layer
         if let Some(deepest_layer) = sim.layer_sets.last() {
             let cell_indices: Vec<_> = deepest_layer.layers.keys().collect();
             if !cell_indices.is_empty() {
-                let mut rng = thread_rng();
-                let random_index = rng.gen_range(0..cell_indices.len());
+                let mut rng = rng();
+                let random_index = rng.random_range(0..cell_indices.len());
                 let cell_index = *cell_indices[random_index];
 
                 // 70% chance of upwell, 30% chance of downwell
-                let is_upwell = rng.gen_bool(0.7);
+                let is_upwell = rng.random_bool(0.7);
 
                 // Random max_size (0-10 scale)
                 let max_size = rng.gen_range(0.0..=10.0);
@@ -583,13 +583,13 @@ impl CoreRadianceComponent {
                 // Apply energy to the deepest cell in each column using transaction system
                 if let Some(_deepest_cell) = column.cells.last() {
                     // Create transaction for energy injection
-                    let cell_location = crate::sim::transaction_manager::CellLocation::new(
+                    let cell_location = crate::transaction_manager::CellLocation::new(
                         deepest_layer_idx,
                         *cell_index,
                         column.cells.len() - 1, // Last cell index
                     );
 
-                    let transaction = crate::sim::transaction_manager::Transaction {
+                    let transaction = crate::transaction_manager::Transaction {
                         source: "CoreRadiance".to_string(),
                         source_cell: cell_location.clone(),
                         target_cell: None, // Absolute energy injection
@@ -867,7 +867,7 @@ impl CoreRadianceComponent {
         // Calculate initial depth (bottom of deepest layer)
         let initial_depth_km = if let Some(deepest_layer) = sim.layer_sets.last() {
             if let Some(column) = deepest_layer.layers.get(&hotspot.cell_index) {
-                if let Some(deepest_cell) = column.cells.last() {
+                if let Some(_deepest_cell) = column.cells.last() {
                     // Estimate depth based on layer structure
                     deepest_layer.start_height_km + (column.cells.len() as f64 * 25.0) // Approximate
                 } else {
@@ -1097,7 +1097,7 @@ impl CoreRadianceComponent {
     }
 
     /// Compare our radiance output with Earth-based reference values
-    fn compare_with_earth_radiance(&self, years_per_step: f64) {
+    fn compare_with_earth_radiance(&self, _years_per_step: f64) {
         println!("\n📊 RADIANCE COMPARISON WITH EARTH VALUES");
         println!("=========================================");
 
@@ -1166,7 +1166,7 @@ impl Default for CoreRadianceComponent {
 
 #[cfg(test)]
 mod tests {
-    use crate::constants::{EARTH_RADIUS_KM, EARTH_RADIUS_KM_F64};
+    use crate::constants::EARTH_RADIUS_KM_F64;
     use crate::sim::layer_set::{default_layer_set_params, DefaultLayerSetParams};
     use super::*;
 
@@ -1305,9 +1305,9 @@ mod tests {
     #[test]
     fn test_core_radiance_energy_injection() {
         use crate::sim::simulation::{Simulation, SimulationConfig};
-        use crate::sim::layer_set::LayerSetParams;
+        
         use crate::component::SimComponent;
-        use crate::energy_mass::energy_mass::EnergyMass;
+        
         use h3o::Resolution;
 
         println!("\n🔥 Testing Core Radiance Energy Injection");
@@ -1345,7 +1345,7 @@ mod tests {
         println!("   Deep layer (25-50km):  {:.2e} J", initial_deep_energy);
 
         // Run simulation for 3 steps
-        for step in 0..3 {
+        for _step in 0..3 {
             sim_no_radiance.step();
         }
 

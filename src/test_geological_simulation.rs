@@ -2,8 +2,8 @@
 mod tests {
     use crate::component::conduction_component::ConductionComponent;
     use crate::component::SimComponent;
-    use crate::sim::simulation::{Simulation, SimulationConfig};
-    use crate::sim::layer_set::LayerSetParams;
+    use crate::deprecated::sim::simulation::{Simulation, SimulationConfig};
+    use crate::deprecated::sim::layer_set::LayerSetParams;
     use crate::energy_mass::energy_mass::EnergyMass;
     use h3o::Resolution;
 
@@ -85,7 +85,7 @@ mod tests {
         for (layer_index, layer_set) in sim.layer_sets.iter().enumerate() {
             println!("\n🗻 Layer Set {}: {} columns", layer_index, layer_set.layers.len());
 
-            for (h3_cell, column) in &layer_set.layers {
+            for (_h3_cell, column) in &layer_set.layers {
                 for (depth_index, cell) in column.cells.iter().enumerate() {
                     total_cells += 1;
 
@@ -460,7 +460,7 @@ mod tests {
         println!("\n🧪 Testing Immutable vs Mutable Approach Comparison");
         println!("===================================================");
 
-        use crate::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
+        use crate::deprecated::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
         use crate::energy_mass::energy_mass::EnergyMass;
         use h3o::CellIndex;
 
@@ -876,10 +876,10 @@ mod tests {
         println!("\n🧪 Mutable vs Immutable Performance Comparison");
         println!("==============================================");
 
-        use crate::sim::transaction_manager::{TransactionManager, Transaction, CellLocation, CellSnapshot};
-        use crate::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
-        use crate::sim::layer_set::{LayerSet, LayerSetParams};
-        use h3o::{CellIndex, Resolution};
+        use crate::transaction_manager::{TransactionManager, Transaction, CellLocation, CellSnapshot};
+        use crate::deprecated::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
+        
+        use h3o::CellIndex;
         use std::collections::HashMap;
 
         // Test parameters

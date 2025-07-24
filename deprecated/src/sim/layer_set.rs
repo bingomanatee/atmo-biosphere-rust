@@ -1,6 +1,6 @@
 use crate::constants::{GRAVITY_M_S2, KM2_TO_M2_CONVERSION, REFERENCE_PRESSURE_PA};
 use crate::energy_mass::energy_mass::EnergyMass;
-use crate::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
+use crate::deprecated::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
 use crate::utils::h3_utils::H3Utils;
 use h3o::{CellIndex, Resolution};
 use rayon::prelude::*;
@@ -185,12 +185,12 @@ impl LayerSet {
                 cell.set_pressure_pa(total_pressure);
 
                 // CRITICAL FIX: Actually apply the estimated mass to the cell (immutable pattern)
-                let new_cell_with_mass = crate::sim::energy_mass_cell::EnergyMassCell::with_mass(
+                let new_cell_with_mass = crate::deprecated::sim::energy_mass_cell::EnergyMassCell::with_mass(
                     cell,
                     estimated_mass_kg,
                 );
                 let new_cell_with_pressure =
-                    crate::sim::energy_mass_cell::EnergyMassCell::with_pressure(
+                    crate::deprecated::sim::energy_mass_cell::EnergyMassCell::with_pressure(
                         &new_cell_with_mass,
                         total_pressure,
                     );
@@ -246,14 +246,14 @@ impl LayerSet {
 #[cfg(test)]
 mod tests {
     use crate::constants::EARTH_RADIUS_KM;
-    use crate::sim::layer_set::{DefaultLayerSetParams, LayerSet, default_layer_set_params};
+    use crate::deprecated::sim::layer_set::{DefaultLayerSetParams, LayerSet, default_layer_set_params};
     use crate::energy_mass::energy_mass::EnergyMass;
     use h3o::Resolution;
 
     #[test]
     fn test_default_layer_set_params() {
         let start_temp = 288.0;
-        let mut temp = start_temp;
+        let _temp = start_temp;
 
         for params in default_layer_set_params(&DefaultLayerSetParams {
             resolution: Resolution::Zero,

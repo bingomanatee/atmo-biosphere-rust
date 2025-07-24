@@ -85,7 +85,7 @@ impl LayerSetImmut {
         for (h3_cell, column) in &self.layers {
             let mut new_cells = Vec::new();
 
-            for (cell_idx, cell) in column.cells.iter().enumerate() {
+            for (_cell_idx, cell) in column.cells.iter().enumerate() {
                 // Calculate depth within this layer set
                 let depth_in_layer_km = cell.top_km - self.start_height_km + cell.height_km / 2.0;
 
@@ -235,43 +235,103 @@ impl ColumnImmut {
 
 
 /// Helper function to create default immutable layer set parameters
+/// Correct layer structure as discussed: 5+5+5 cells, good aspect ratios, 165km depth
+/// Designed for Resolution 3 (~60km cells) with artificial deep radiance
 pub fn default_layer_set_params_immut(resolution: h3o::Resolution, planet_radius_km: f64) -> Vec<LayerSetParamsImmut> {
     vec![
+        // Surface Layer (0-15km): Surface detail for plate interactions
         LayerSetParamsImmut {
             resolution,
             start_height_km: 0.0,
-            cell_height_km: 5.0,
+            cell_height_km: 3.0,  // 3km cells - aspect ratio 3:60 = 1:20
             material_name: "basalt".to_string(),
-            column_count: 5,
+            column_count: 5,      // 5 cells = 15km (surface detail)
             planet_radius_km,
-            thermal_gradient_k_per_km: 0.5,
+            thermal_gradient_k_per_km: 25.0, // High gradient in crust
         },
+        // Mid Layer (15-65km): Heat transport
         LayerSetParamsImmut {
             resolution,
-            start_height_km: 50.0,
-            cell_height_km: 10.0,
+            start_height_km: 15.0,
+            cell_height_km: 10.0, // 10km cells - aspect ratio 10:60 = 1:6
             material_name: "granite".to_string(),
-            column_count: 10,
+            column_count: 5,      // 5 cells = 50km (heat transport)
             planet_radius_km,
-            thermal_gradient_k_per_km: 0.5,
+            thermal_gradient_k_per_km: 15.0, // Moderate gradient
         },
+        // Deep Layer (65-165km): Background + artificial boundary
         LayerSetParamsImmut {
             resolution,
-            start_height_km: 150.0,
-            cell_height_km: 15.0,
+            start_height_km: 65.0,
+            cell_height_km: 20.0, // 20km cells - aspect ratio 20:60 = 1:3
             material_name: "basalt".to_string(),
-            column_count: 5,
+            column_count: 5,      // 5 cells = 100km (deep background + artificial radiance)
             planet_radius_km,
-            thermal_gradient_k_per_km: 0.5,
+            thermal_gradient_k_per_km: 10.0, // Low gradient, artificial radiance at bottom
         },
+    ]
+}
+
+/// Variable resolution layer parameters - efficient with focus on lateral heat diffusion
+/// Surface detail for plates, coarse everywhere else for efficiency
+pub fn variable_resolution_layer_params_immut(resolution: h3o::Resolution, planet_radius_km: f64) -> Vec<LayerSetParamsImmut> {
+    vec![
+        // Surface Layer (0-20km): Moderate detail for plate interactions
         LayerSetParamsImmut {
             resolution,
-            start_height_km: 225.0,
-            cell_height_km: 20.0,
-            material_name: "granite".to_string(),
-            column_count: 3,
+            start_height_km: 0.0,
+            cell_height_km: 5.0,  // 5km cells - enough detail for plates, not excessive
+            material_name: "basalt".to_string(),
+            column_count: 4,      // 4 cells = 20km (crust + upper lithosphere)
             planet_radius_km,
-            thermal_gradient_k_per_km: 0.5,
+            thermal_gradient_k_per_km: 25.0, // High gradient in crust
+        },
+        // Upper Mantle (20-80km): Efficient background for lateral heat diffusion
+        LayerSetParamsImmut {
+            resolution,
+            start_height_km: 20.0,
+            cell_height_km: 15.0, // 15km cells - efficient for background thermal
+            material_name: "granite".to_string(),
+            column_count: 4,      // 4 cells = 60km (lithospheric mantle)
+            planet_radius_km,
+            thermal_gradient_k_per_km: 15.0, // Moderate gradient
+        },
+        // Deep Mantle (80-180km): Coarse for plume sources and deep background
+        LayerSetParamsImmut {
+            resolution,
+            start_height_km: 80.0,
+            cell_height_km: 25.0, // 25km cells - coarse and efficient
+            material_name: "basalt".to_string(),
+            column_count: 4,      // 4 cells = 100km (deep mantle/plume source)
+            planet_radius_km,
+            thermal_gradient_k_per_km: 10.0, // Low gradient in deep mantle
+        },
+    ]
+}
+
+/// Helper function to create shallow, detailed layer parameters for full simulation runs
+/// Optimized for ~20 cells per column focusing on lateral energy diffusion and surface processes
+pub fn coarse_layer_set_params_immut(resolution: h3o::Resolution, planet_radius_km: f64) -> Vec<LayerSetParamsImmut> {
+    vec![
+        // Surface/Crust (0-40km): Basalt - detailed surface and crustal processes
+        LayerSetParamsImmut {
+            resolution,
+            start_height_km: 0.0,
+            cell_height_km: 2.0,  // 2km cells for detailed surface resolution
+            material_name: "basalt".to_string(),
+            column_count: 12,     // 12 cells = 24km total depth (detailed crust)
+            planet_radius_km,
+            thermal_gradient_k_per_km: 25.0, // High gradient in crust
+        },
+        // Upper Mantle (24-64km): Granite - moderate resolution for lithosphere
+        LayerSetParamsImmut {
+            resolution,
+            start_height_km: 24.0,
+            cell_height_km: 5.0,  // 5km cells for lithosphere processes
+            material_name: "granite".to_string(),
+            column_count: 8,      // 8 cells = 40km total depth
+            planet_radius_km,
+            thermal_gradient_k_per_km: 15.0, // Moderate gradient
         },
     ]
 }

@@ -1,4 +1,4 @@
-use crate::sim::energy_mass_cell_immut::{EnergyMassCellImmut, EnergyMassCellImmutProps};
+use crate::deprecated::sim::energy_mass_cell_immut::{EnergyMassCellImmut, EnergyMassCellImmutProps};
 use crate::energy_mass::energy_mass::EnergyMass;
 use h3o::{CellIndex, Resolution};
 use std::collections::HashMap;

@@ -207,7 +207,7 @@ impl H3Utils {
             .collect();
 
         // Get center cell 3D point for distance calculations
-        let center_point_3d = Self::cell_to_3d_point(center_cell, planet_radius_km);
+        let _center_point_3d = Self::cell_to_3d_point(center_cell, planet_radius_km);
 
         // Filter by actual distance and build comprehensive result
         let mut result = Vec::new();

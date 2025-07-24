@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
+    
     use crate::events::{Event, SimulationEvent};
-    use std::time::Duration;
+    
 
     #[test]
     fn test_event_creation() {

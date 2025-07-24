@@ -238,7 +238,7 @@ impl EnergyMassCellImmut {
     }
 
     /// Helper method to calculate volume
-    fn calculate_volume_km3(cell_index: CellIndex, height_km: f64, planet_radius_km: f64) -> f64 {
+    fn calculate_volume_km3(cell_index: CellIndex, height_km: f64, _planet_radius_km: f64) -> f64 {
         let area_km2 = cell_index.area_km2();
         area_km2 * height_km
     }
@@ -314,7 +314,7 @@ impl EnergyMassCellImmut {
 
         // Calculate new temperature from energy: T = E / (m * c)
         let material = self.material();
-        let new_temperature = new_energy / (self.mass_kg * material.specific_heat_capacity_j_per_kg_k as f64);
+        let _new_temperature = new_energy / (self.mass_kg * material.specific_heat_capacity_j_per_kg_k as f64);
 
         // Create new cell with updated energy and temperature
         Self {

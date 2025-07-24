@@ -18,7 +18,10 @@
       "thermal_conduction_modifier_dimensionless": 0.009,
       "bulk_modulus_pa": 50000000000.0,
       "activation_energy_j_per_mol": 200000.0,
-      "activation_volume_m3_per_mol": 1e-05
+      "activation_volume_m3_per_mol": 1e-05,
+      "emissivity": 0.95,
+      "absorptivity": 0.95,
+      "reflectivity": 0.05
     },
     "liquid": {
       "density_kg_m3": 2850.0,
@@ -36,7 +39,10 @@
       "thermal_expansivity_per_k": 2e-05,
       "dynamic_viscosity_pa_s": 100.0,
       "thermal_conduction_modifier_dimensionless": 1.35,
-      "bulk_modulus_pa": 2000000000.0
+      "bulk_modulus_pa": 2000000000.0,
+      "emissivity": 0.92,
+      "absorptivity": 0.92,
+      "reflectivity": 0.08
     },
     "gas": {
       "density_kg_m3": 0.1,
@@ -54,7 +60,10 @@
       "thermal_expansivity_per_k": 3e-03,
       "dynamic_viscosity_pa_s": 1e-05,
       "thermal_conduction_modifier_dimensionless": 0.27,
-      "bulk_modulus_pa": 100000.0
+      "bulk_modulus_pa": 100000.0,
+      "emissivity": 0.80,
+      "absorptivity": 0.80,
+      "reflectivity": 0.20
     },
     "emission_compounds": {
       "CO2": 0.45,
@@ -85,7 +94,10 @@
       "thermal_conduction_modifier_dimensionless": 0.008,
       "bulk_modulus_pa": 45000000000.0,
       "activation_energy_j_per_mol": 220000.0,
-      "activation_volume_m3_per_mol": 1.2e-05
+      "activation_volume_m3_per_mol": 1.2e-05,
+      "emissivity": 0.85,
+      "absorptivity": 0.85,
+      "reflectivity": 0.15
     },
     "liquid": {
       "density_kg_m3": 2650.0,
@@ -103,7 +115,10 @@
       "thermal_expansivity_per_k": 1.5e-05,
       "dynamic_viscosity_pa_s": 1000.0,
       "thermal_conduction_modifier_dimensionless": 1.2,
-      "bulk_modulus_pa": 2000000000.0
+      "bulk_modulus_pa": 2000000000.0,
+      "emissivity": 0.82,
+      "absorptivity": 0.82,
+      "reflectivity": 0.18
     },
     "gas": {
       "density_kg_m3": 0.08,
@@ -120,7 +135,10 @@
       "thermal_expansivity_per_k": 3e-03,
       "dynamic_viscosity_pa_s": 1e-05,
       "thermal_conduction_modifier_dimensionless": 0.24,
-      "bulk_modulus_pa": 100000.0
+      "bulk_modulus_pa": 100000.0,
+      "emissivity": 0.75,
+      "absorptivity": 0.75,
+      "reflectivity": 0.25
     },
     "emission_compounds": {
       "H2O": 0.5,
@@ -151,7 +169,10 @@
       "thermal_conduction_modifier_dimensionless": 1.0,
       "bulk_modulus_pa": 130000000000.0,
       "activation_energy_j_per_mol": 240000.0,
-      "activation_volume_m3_per_mol": 1.1e-05
+      "activation_volume_m3_per_mol": 1.1e-05,
+      "emissivity": 0.90,
+      "absorptivity": 0.90,
+      "reflectivity": 0.10
     },
     "liquid": {
       "density_kg_m3": 3100.0,
@@ -217,7 +238,10 @@
       "thermal_conduction_modifier_dimensionless": 1.2,
       "bulk_modulus_pa": 130000000000.0,
       "activation_energy_j_per_mol": 240000.0,
-      "activation_volume_m3_per_mol": 1.1e-05
+      "activation_volume_m3_per_mol": 1.1e-05,
+      "emissivity": 0.60,
+      "absorptivity": 0.60,
+      "reflectivity": 0.40
     },
     "liquid": {
       "density_kg_m3": 7000.0,
@@ -283,7 +307,10 @@
       "thermal_conduction_modifier_dimensionless": 0.6,
       "bulk_modulus_pa": 130000000000.0,
       "activation_energy_j_per_mol": 240000.0,
-      "activation_volume_m3_per_mol": 1.1e-05
+      "activation_volume_m3_per_mol": 1.1e-05,
+      "emissivity": 0.96,
+      "absorptivity": 0.96,
+      "reflectivity": 0.04
     },
     "liquid": {
       "density_kg_m3": 1000.0,
@@ -323,6 +350,94 @@
     },
     "emission_compounds": {
       "H2O": 1.0
+    }
+  },
+  "olivine": {
+    "solid": {
+      "density_kg_m3": 3300.0,
+      "specific_heat_capacity_j_per_kg_k": 800.0,
+      "thermal_conductivity_w_m_k": 4.2,
+      "thermal_transmission_r0_min": 1.2,
+      "thermal_transmission_r0_max": 6.0,
+      "melt_temp": 1890.0,
+      "melt_temp_min": 1870.0,
+      "melt_temp_max": 1910.0,
+      "latent_heat_fusion": 500000.0,
+      "boil_temp": 3200.0,
+      "latent_heat_vapor": 2500000.0,
+      "gas_interference_factor": 0.7,
+      "thermal_expansivity_per_k": 8e-06,
+      "dynamic_viscosity_pa_s": 1e+22,
+      "thermal_conduction_modifier_dimensionless": 0.012,
+      "bulk_modulus_pa": 130000000000.0,
+      "activation_energy_j_per_mol": 300000.0,
+      "activation_volume_m3_per_mol": 8e-06
+    }
+  },
+  "peridotite": {
+    "solid": {
+      "density_kg_m3": 3400.0,
+      "specific_heat_capacity_j_per_kg_k": 850.0,
+      "thermal_conductivity_w_m_k": 3.8,
+      "thermal_transmission_r0_min": 1.0,
+      "thermal_transmission_r0_max": 5.5,
+      "melt_temp": 1650.0,
+      "melt_temp_min": 1630.0,
+      "melt_temp_max": 1670.0,
+      "latent_heat_fusion": 450000.0,
+      "boil_temp": 3100.0,
+      "latent_heat_vapor": 2400000.0,
+      "gas_interference_factor": 0.75,
+      "thermal_expansivity_per_k": 9e-06,
+      "dynamic_viscosity_pa_s": 5e+21,
+      "thermal_conduction_modifier_dimensionless": 0.011,
+      "bulk_modulus_pa": 140000000000.0,
+      "activation_energy_j_per_mol": 250000.0,
+      "activation_volume_m3_per_mol": 9e-06
+    }
+  },
+  "gabbro": {
+    "solid": {
+      "density_kg_m3": 3050.0,
+      "specific_heat_capacity_j_per_kg_k": 820.0,
+      "thermal_conductivity_w_m_k": 2.2,
+      "thermal_transmission_r0_min": 0.9,
+      "thermal_transmission_r0_max": 4.5,
+      "melt_temp": 1450.0,
+      "melt_temp_min": 1430.0,
+      "melt_temp_max": 1470.0,
+      "latent_heat_fusion": 380000.0,
+      "boil_temp": 2950.0,
+      "latent_heat_vapor": 2100000.0,
+      "gas_interference_factor": 0.8,
+      "thermal_expansivity_per_k": 1.1e-05,
+      "dynamic_viscosity_pa_s": 8e+20,
+      "thermal_conduction_modifier_dimensionless": 0.010,
+      "bulk_modulus_pa": 75000000000.0,
+      "activation_energy_j_per_mol": 220000.0,
+      "activation_volume_m3_per_mol": 1.2e-05
+    }
+  },
+  "eclogite": {
+    "solid": {
+      "density_kg_m3": 3500.0,
+      "specific_heat_capacity_j_per_kg_k": 750.0,
+      "thermal_conductivity_w_m_k": 3.5,
+      "thermal_transmission_r0_min": 1.1,
+      "thermal_transmission_r0_max": 5.8,
+      "melt_temp": 1750.0,
+      "melt_temp_min": 1730.0,
+      "melt_temp_max": 1770.0,
+      "latent_heat_fusion": 520000.0,
+      "boil_temp": 3300.0,
+      "latent_heat_vapor": 2600000.0,
+      "gas_interference_factor": 0.65,
+      "thermal_expansivity_per_k": 7e-06,
+      "dynamic_viscosity_pa_s": 2e+22,
+      "thermal_conduction_modifier_dimensionless": 0.013,
+      "bulk_modulus_pa": 160000000000.0,
+      "activation_energy_j_per_mol": 350000.0,
+      "activation_volume_m3_per_mol": 7e-06
     }
   }
 }

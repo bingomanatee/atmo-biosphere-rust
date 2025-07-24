@@ -1,6 +1,6 @@
 use crate::component::SimComponent;
-use crate::sim::Simulation;
-use crate::sim::energy_mass_cell::EnergyMassCell;
+use crate::deprecated::sim::Simulation;
+use crate::deprecated::sim::energy_mass_cell::EnergyMassCell;
 use crate::energy_mass::energy_mass::EnergyMass;
 use crate::material::material::MassCalculationParams;
 use crate::constants::GRAVITY_M_S2;
@@ -137,7 +137,7 @@ impl ConvectionPlume {
     }
 
     /// Apply plume effects to current layer and vertically adjacent layers
-    pub fn apply_vertical_effects(&self, sim: &mut crate::sim::simulation::Simulation, years_per_step: f64) {
+    pub fn apply_vertical_effects(&self, sim: &mut crate::deprecated::sim::simulation::Simulation, years_per_step: f64) {
         let current_layer = self.current_layer_index;
 
         // Calculate energy/mass to distribute this time step (10% per year)
@@ -177,7 +177,7 @@ impl ConvectionPlume {
 
     /// Apply energy/mass to specific layer around plume location
     /// Uses double-entry accounting to ensure mass conservation
-    fn apply_to_layer(&self, sim: &mut crate::sim::simulation::Simulation, layer_index: usize, energy: f64, mass: f64) {
+    fn apply_to_layer(&self, sim: &mut crate::deprecated::sim::simulation::Simulation, layer_index: usize, energy: f64, mass: f64) {
         if let Some(layer_set) = sim.layer_sets.get_mut(layer_index) {
             // Find target cells around plume location
             let target_cells = self.find_target_cells_in_layer(layer_set);
@@ -211,7 +211,7 @@ impl ConvectionPlume {
     }
 
     /// Find target cells in a layer around the plume location
-    fn find_target_cells_in_layer(&self, layer_set: &crate::sim::layer_set::LayerSet) -> Vec<h3o::CellIndex> {
+    fn find_target_cells_in_layer(&self, layer_set: &crate::deprecated::sim::layer_set::LayerSet) -> Vec<h3o::CellIndex> {
         use h3o::LatLng;
 
         let mut target_cells = Vec::new();
@@ -353,7 +353,7 @@ impl ConvectionPlumeComponent {
         }
 
         // Buoyancy force per unit volume (N/m³)
-        let buoyancy_force = GRAVITY_M_S2 * density_diff;
+        let _buoyancy_force = GRAVITY_M_S2 * density_diff;
 
         // Terminal velocity for spherical particle (m/s)
         // v = sqrt(2 * g * Δρ * r / (9 * η))
@@ -409,7 +409,7 @@ impl ConvectionPlumeComponent {
     }
 
     /// Find the nearest H3 cell to a given lat/lon position
-    fn find_nearest_cell(lat_deg: f64, lon_deg: f64, layer_set: &crate::sim::layer_set::LayerSet) -> Option<CellIndex> {
+    fn find_nearest_cell(lat_deg: f64, lon_deg: f64, layer_set: &crate::deprecated::sim::layer_set::LayerSet) -> Option<CellIndex> {
         // Convert lat/lon to H3 cell at the layer set's resolution
         let lat_rad = lat_deg.to_radians();
         let lon_rad = lon_deg.to_radians();
@@ -423,7 +423,7 @@ impl ConvectionPlumeComponent {
             } else {
                 // Find the closest existing cell
                 let mut closest_cell = None;
-                let min_distance = f64::INFINITY;
+                let _min_distance = f64::INFINITY;
 
                 // For now, just return the first available cell as a fallback
                 // TODO: Implement proper distance calculation when H3 API is clarified
@@ -479,13 +479,13 @@ impl ConvectionPlumeComponent {
 
     /// Calculate buoyancy force between a lower cell and upper cell
     /// Returns Some(BuoyancyInfo) if buoyancy conditions favor plume formation
-    fn calculate_buoyancy_force(&self, lower_cell: &crate::sim::energy_mass_cell::EnergyMassCell,
-                                upper_cell: &crate::sim::energy_mass_cell::EnergyMassCell) -> Option<BuoyancyInfo> {
+    fn calculate_buoyancy_force(&self, lower_cell: &crate::deprecated::sim::energy_mass_cell::EnergyMassCell,
+                                upper_cell: &crate::deprecated::sim::energy_mass_cell::EnergyMassCell) -> Option<BuoyancyInfo> {
         // Get cell properties
         let lower_temp = lower_cell.temperature_kelvin();
         let upper_temp = upper_cell.temperature_kelvin();
-        let lower_pressure = lower_cell.pressure_pa();
-        let upper_pressure = upper_cell.pressure_pa();
+        let _lower_pressure = lower_cell.pressure_pa();
+        let _upper_pressure = upper_cell.pressure_pa();
 
         // Calculate densities based on current conditions
         let lower_volume_km3 = lower_cell.area() * lower_cell.height_km;
@@ -573,8 +573,8 @@ impl ConvectionPlumeComponent {
 
     /// Create a buoyancy-driven moving plume with vertical radiation effects
     fn create_buoyancy_plume(&mut self, layer_set_idx: usize, cell_index: h3o::CellIndex,
-                           cell: &crate::sim::energy_mass_cell::EnergyMassCell,
-                           buoyancy_info: &BuoyancyInfo, sim: &mut crate::sim::simulation::Simulation) -> (f64, f64) {
+                           cell: &crate::deprecated::sim::energy_mass_cell::EnergyMassCell,
+                           buoyancy_info: &BuoyancyInfo, sim: &mut crate::deprecated::sim::simulation::Simulation) -> (f64, f64) {
         // Generate plume properties based on buoyancy conditions
         let base_temp = cell.temperature_kelvin();
         let temp_variation = (self.rng.random::<f64>() - 0.5) * 2.0 * self.temperature_perturbation_amplitude_k;
@@ -634,14 +634,14 @@ impl ConvectionPlumeComponent {
     }
 
     /// Get geographic location of a cell
-    fn get_cell_geographic_location(&self, cell_index: h3o::CellIndex, _layer_index: usize, _sim: &crate::sim::simulation::Simulation) -> (f64, f64) {
+    fn get_cell_geographic_location(&self, cell_index: h3o::CellIndex, _layer_index: usize, _sim: &crate::deprecated::sim::simulation::Simulation) -> (f64, f64) {
         use h3o::LatLng;
         let lat_lng = LatLng::from(cell_index);
         (lat_lng.lat_radians().to_degrees(), lat_lng.lng_radians().to_degrees())
     }
 
     /// Get approximate depth of a layer (middle of layer)
-    fn get_layer_depth(&self, layer_index: usize, sim: &crate::sim::simulation::Simulation) -> f64 {
+    fn get_layer_depth(&self, layer_index: usize, sim: &crate::deprecated::sim::simulation::Simulation) -> f64 {
         if let Some(layer_set) = sim.layer_sets.get(layer_index) {
             if let Some(column) = layer_set.layers.values().next() {
                 if let Some(first_cell) = column.cells.first() {
@@ -820,8 +820,8 @@ impl ConvectionPlumeComponent {
                         // Higher probability for extreme conditions
                         let plume_probability = (temp_diff / 1000.0).min(0.5) * years_per_step * 1e-4; // Much higher probability
 
-                        use rand::thread_rng;
-                        if thread_rng().random::<f64>() < plume_probability {
+                        use rand::rng;
+                        if rng().random::<f64>() < plume_probability {
                             Some((layer_set_idx, *cell_index, cell_idx, buoyancy_info))
                         } else {
                             None
@@ -908,7 +908,7 @@ impl ConvectionPlumeComponent {
 
     /// Create a buoyancy-driven moving plume with cell data (helper to avoid borrowing conflicts)
     fn create_buoyancy_plume_with_data(&mut self, layer_set_idx: usize, cell_index: h3o::CellIndex,
-                                     cell: &crate::sim::energy_mass_cell::EnergyMassCell,
+                                     cell: &crate::deprecated::sim::energy_mass_cell::EnergyMassCell,
                                      buoyancy_info: &BuoyancyInfo) -> (f64, f64) {
         // Generate plume properties based on buoyancy conditions
         let base_temp = cell.temperature_kelvin();
@@ -1046,7 +1046,7 @@ impl ConvectionPlumeComponent {
 
 
     /// Update existing moving plumes - apply decay, movement, and vertical radiation (threaded)
-    fn update_plumes(&mut self, sim: &mut crate::sim::simulation::Simulation, years_per_step: f64) {
+    fn update_plumes(&mut self, sim: &mut crate::deprecated::sim::simulation::Simulation, years_per_step: f64) {
         let use_threading = sim.plumes.len() > 10; // Use threading for many plumes
 
         if use_threading {
@@ -1057,7 +1057,7 @@ impl ConvectionPlumeComponent {
     }
 
     /// Sequential plume updates (for few plumes)
-    fn update_plumes_sequential(&mut self, sim: &mut crate::sim::simulation::Simulation, years_per_step: f64) {
+    fn update_plumes_sequential(&mut self, sim: &mut crate::deprecated::sim::simulation::Simulation, years_per_step: f64) {
         // First pass: apply physics updates that don't need sim access
         sim.plumes.retain_mut(|plume| {
             // 1. Apply half-life decay
@@ -1115,7 +1115,7 @@ impl ConvectionPlumeComponent {
 
     /*
     /// Apply vertical effects for all plumes (helper method to avoid borrowing conflicts)
-    fn apply_all_plume_vertical_effects(&self, sim: &mut crate::sim::simulation::Simulation, years_per_step: f64) {
+    fn apply_all_plume_vertical_effects(&self, sim: &mut crate::deprecated::sim::simulation::Simulation, years_per_step: f64) {
         // Collect plume data first to avoid borrowing conflicts
         let plume_data: Vec<_> = sim.plumes.iter().map(|p| {
             (p.id, p.current_layer_index, p.total_energy_joules, p.total_mass_kg, p.source_cell_index)
@@ -1133,7 +1133,7 @@ impl ConvectionPlumeComponent {
     }
 
     /// Apply plume effects to specific layers (helper method)
-    fn apply_plume_effects_to_layers(&self, sim: &mut crate::sim::simulation::Simulation,
+    fn apply_plume_effects_to_layers(&self, sim: &mut crate::deprecated::sim::simulation::Simulation,
                                    current_layer: usize, source_cell: h3o::CellIndex,
                                    energy_transfer: f64, mass_transfer: f64) {
         // Apply effects to current layer and adjacent layers
@@ -1154,7 +1154,7 @@ impl ConvectionPlumeComponent {
     */
 
     /// Threaded plume updates (for many plumes)
-    fn update_plumes_threaded(&mut self, sim: &mut crate::sim::simulation::Simulation, years_per_step: f64) {
+    fn update_plumes_threaded(&mut self, sim: &mut crate::deprecated::sim::simulation::Simulation, years_per_step: f64) {
         println!("🧵 Using threaded plume updates for {} plumes", sim.plumes.len());
 
         // Phase 1: Parallel physics updates (read-only operations)
@@ -1231,7 +1231,7 @@ impl ConvectionPlumeComponent {
     }
 
     /// Check if plume should move to upper layer based on depth
-    fn should_move_to_upper_layer(&self, plume: &ConvectionPlume, sim: &crate::sim::simulation::Simulation) -> bool {
+    fn should_move_to_upper_layer(&self, plume: &ConvectionPlume, sim: &crate::deprecated::sim::simulation::Simulation) -> bool {
         if plume.current_layer_index == 0 {
             return false; // Already at surface
         }
@@ -1262,7 +1262,7 @@ impl ConvectionPlumeComponent {
     }
 
     /// Find the cell index within a column that corresponds to a given depth
-    fn find_cell_at_depth(column: &crate::sim::layer_set::Column, target_depth_km: f64) -> usize {
+    fn find_cell_at_depth(column: &crate::deprecated::sim::layer_set::Column, target_depth_km: f64) -> usize {
         // Simple approach: assume cells are evenly distributed in depth
         // and pick the cell closest to the target depth
         let num_cells = column.cells.len();
@@ -1401,8 +1401,8 @@ impl Default for ConvectionPlumeComponent {
 mod tests {
     use crate::constants::{DEFAULT_SURFACE_TEMP_K, EARTH_RADIUS_KM};
     use super::*;
-    use crate::material::MaterialPhase;
-    use crate::sim::layer_set::{default_layer_set_params, DefaultLayerSetParams};
+    
+    use crate::deprecated::sim::layer_set::{default_layer_set_params, DefaultLayerSetParams};
 
     #[test]
     fn test_mass_transfer_pressure_imbalance() {
@@ -1412,8 +1412,8 @@ mod tests {
         let cell_index = h3o::CellIndex::try_from(0x85283473fffffff_u64).unwrap();
 
         // Create two cells with different pressures but same material
-        let mut lower_cell = crate::sim::energy_mass_cell::EnergyMassCell::new(
-            crate::sim::energy_mass_cell::EnergyMassCellProps {
+        let mut lower_cell = crate::deprecated::sim::energy_mass_cell::EnergyMassCell::new(
+            crate::deprecated::sim::energy_mass_cell::EnergyMassCellProps {
                 cell_index,
                 temperature_kelvin: 1800.0,
                 pressure_pa: 2e9,  // 2 GPa - high pressure (deep)
@@ -1423,8 +1423,8 @@ mod tests {
                 planet_radius_km: 6371.0,
             });
 
-        let mut upper_cell = crate::sim::energy_mass_cell::EnergyMassCell::new(
-            crate::sim::energy_mass_cell::EnergyMassCellProps {
+        let mut upper_cell = crate::deprecated::sim::energy_mass_cell::EnergyMassCell::new(
+            crate::deprecated::sim::energy_mass_cell::EnergyMassCellProps {
                 cell_index,
                 temperature_kelvin: 1200.0,
                 pressure_pa: 1e9,  // 1 GPa - lower pressure (shallow)
@@ -1550,7 +1550,7 @@ mod tests {
         println!("\n🧪 Testing Transaction Manager Dynamic Pressure");
         println!("===============================================");
 
-        use crate::sim::transaction_manager::{TransactionManager, CellSnapshot, CellLocation, Transaction};
+        use crate::transaction_manager::{TransactionManager, CellSnapshot, CellLocation};
 
         let mut tm = TransactionManager::new();
 
@@ -1613,8 +1613,8 @@ mod tests {
         // This test demonstrates that we calculate ACTUAL overhead mass
         // from cells above, not from pressure (which was wrong when cells had zero mass)
 
-        use crate::sim::simulation::{Simulation, SimulationConfig};
-        use crate::sim::layer_set::LayerSetParams;
+        use crate::deprecated::sim::simulation::{Simulation, SimulationConfig};
+        use crate::deprecated::sim::layer_set::LayerSetParams;
         use h3o::Resolution;
 
         // Create a simple 2-layer simulation
@@ -1695,8 +1695,8 @@ mod tests {
         // 1. First pass: Calculate mass from density × volume (uncompressed)
         // 2. Second pass: Adjust for compression based on overhead mass
 
-        use crate::sim::simulation::{Simulation, SimulationConfig};
-        use crate::sim::layer_set::LayerSetParams;
+        use crate::deprecated::sim::simulation::{Simulation, SimulationConfig};
+        
         use h3o::Resolution;
 
         // Create a simple 2-layer simulation
@@ -1833,8 +1833,8 @@ mod tests {
 
     #[test]
     fn test_simulation_with_profiling() {
-        use crate::sim::simulation::{Simulation, SimulationConfig};
-        use crate::sim::layer_set::LayerSetParams;
+        use crate::deprecated::sim::simulation::{Simulation, SimulationConfig};
+        
         use h3o::Resolution;
 
         println!("\n⏱️ Testing Simulation with Performance Profiling");
@@ -1885,7 +1885,7 @@ mod tests {
     #[allow(dead_code)]
     fn test_component_profiling_system() {
         // use crate::profiling::component_profiler::ComponentProfiler;
-        use std::time::Duration;
+        
 
         println!("\n⏱️ Testing Component Profiling System");
         println!("=====================================");
@@ -2012,8 +2012,8 @@ mod tests {
 #[cfg(test)]
 mod convection_simulation_tests {
     use super::*;
-    use crate::sim::simulation::{Simulation, SimulationConfig};
-    use crate::sim::layer_set::{default_layer_set_params, DefaultLayerSetParams, LayerSetParams};
+    use crate::deprecated::sim::simulation::{Simulation, SimulationConfig};
+    use crate::deprecated::sim::layer_set::{default_layer_set_params, DefaultLayerSetParams};
     use h3o::Resolution;
     use crate::constants::{DEFAULT_SURFACE_TEMP_K, EARTH_RADIUS_KM_F64};
 
@@ -2200,7 +2200,7 @@ mod convection_simulation_tests {
                     ((final_with_conv.total_energy_joules - initial_with_conv.total_energy_joules) / initial_with_conv.total_energy_joules) * 100.0);
 
                 // Calculate convection effect on energy distribution
-                let energy_redistribution = (final_with_conv.total_energy_joules - final_no_conv.total_energy_joules);
+                let energy_redistribution = final_with_conv.total_energy_joules - final_no_conv.total_energy_joules;
                 let redistribution_percent = (energy_redistribution / final_no_conv.total_energy_joules) * 100.0;
 
                 println!("   CONVECTION EFFECT:");
@@ -2475,7 +2475,7 @@ mod convection_simulation_tests {
 
         let mut components_seq: Vec<Box<dyn crate::component::SimComponent>> = vec![
             Box::new({
-                let mut comp = ConvectionPlumeComponent::with_seed(12345);
+                let comp = ConvectionPlumeComponent::with_seed(12345);
                 // Force sequential by setting high threshold
                 comp
             }),
@@ -2498,7 +2498,7 @@ mod convection_simulation_tests {
 
         let mut components_thread: Vec<Box<dyn crate::component::SimComponent>> = vec![
             Box::new({
-                let mut comp = ConvectionPlumeComponent::with_seed(12345);
+                let comp = ConvectionPlumeComponent::with_seed(12345);
                 // Force threading by setting low threshold (we'll modify the threshold temporarily)
                 comp
             }),
@@ -2654,8 +2654,8 @@ mod convection_simulation_tests {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
-        use h3o::{CellIndex, Resolution};
+        use crate::deprecated::sim::energy_mass_cell::{EnergyMassCell, EnergyMassCellProps};
+        use h3o::CellIndex;
 
         #[test]
         fn test_two_cell_mass_conservation() {

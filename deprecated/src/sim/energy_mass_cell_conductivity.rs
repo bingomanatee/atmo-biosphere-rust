@@ -1,4 +1,4 @@
-use crate::sim::energy_mass_cell::EnergyMassCell;
+use crate::deprecated::sim::energy_mass_cell::EnergyMassCell;
 use crate::utils::h3_utils::H3Utils;
 use crate::energy_mass::energy_mass::EnergyMass;
 use crate::material::MaterialPhase;
