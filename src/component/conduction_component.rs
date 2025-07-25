@@ -1,6 +1,6 @@
 use crate::component::SimComponent;
-use crate::deprecated::sim::Simulation;
-use crate::deprecated::sim::energy_mass_cell::EnergyMassCell;
+use crate::sim_immut::simulation_immut::SimulationImmut;
+use crate::sim_immut::energy_mass_cell_immut::EnergyMassCellImmut;
 use crate::energy_mass::energy_mass::EnergyMass;
 use crate::utils::h3_utils::H3Utils;
 use h3o::CellIndex;

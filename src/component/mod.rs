@@ -1,10 +1,10 @@
 pub mod component_trait;
-pub mod convection_plume_component;
-pub mod conduction_component;
-pub mod solar_radiation_component;
-pub mod core_radiance_component;
+// pub mod convection_plume_component; // Temporarily disabled - needs major refactor
+// pub mod conduction_component; // Temporarily disabled - needs refactor
+pub mod surface_emission_component;
+pub mod core_heat_component;
 
 pub use component_trait::SimComponent;
-pub use convection_plume_component::ConvectionPlumeComponent;
-pub use core_radiance_component::CoreRadianceComponent;
-pub use solar_radiation_component::RadiativeCoolingComponent;
+// pub use convection_plume_component::ConvectionPlumeComponent; // Temporarily disabled
+pub use core_heat_component::CoreHeatComponent;
+pub use surface_emission_component::SurfaceEmissionComponent;

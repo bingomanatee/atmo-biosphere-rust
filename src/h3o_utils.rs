@@ -1,7 +1,7 @@
 
 use h3o::Resolution;
 
-fn main() {
+fn _example_usage() {
     // Iterate resolutions 0..=15
     for res in Resolution::range(Resolution::Zero, Resolution::Fifteen) {
         let res_num: u8 = res.into();

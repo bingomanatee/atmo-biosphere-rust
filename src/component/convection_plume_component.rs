@@ -1,6 +1,6 @@
 use crate::component::SimComponent;
-use crate::deprecated::sim::Simulation;
-use crate::deprecated::sim::energy_mass_cell::EnergyMassCell;
+use crate::sim_immut::simulation_immut::SimulationImmut;
+use crate::sim_immut::energy_mass_cell_immut::EnergyMassCellImmut;
 use crate::energy_mass::energy_mass::EnergyMass;
 use crate::material::material::MassCalculationParams;
 use crate::constants::GRAVITY_M_S2;
@@ -1287,7 +1287,7 @@ impl SimComponent for ConvectionPlumeComponent {
         "convection_plumes"
     }
 
-    fn initialize(&mut self, sim: &mut Simulation) {
+    fn initialize(&mut self, sim: &mut SimulationImmut) {
         println!("🌋 Convection Plume Component initialized");
         println!("   - Buoyancy-based plume generation (no absolute temperature threshold)");
         println!("   - Min temp difference: {:.1}K", self.min_temp_difference_k);
@@ -1304,7 +1304,7 @@ impl SimComponent for ConvectionPlumeComponent {
         println!("   - Temperature perturbations applied ✓");
     }
 
-    fn step(&mut self, sim: &mut Simulation, step: i64, year: i64) {
+    fn step(&mut self, sim: &mut SimulationImmut, step: i64, year: i64) {
         // Component organizes its own internal phases with detailed timing
         {
             let start = std::time::Instant::now();
@@ -1331,7 +1331,7 @@ impl SimComponent for ConvectionPlumeComponent {
         }
     }
 
-    fn complete(&mut self, sim: &Simulation) {
+    fn complete(&mut self, sim: &SimulationImmut) {
         println!("🌋 Convection Plume Component completed");
         println!("   - Final active plumes: {}", sim.plumes.len());
         let total_energy: f64 = sim.plumes.iter().map(|p| p.total_energy_joules).sum();

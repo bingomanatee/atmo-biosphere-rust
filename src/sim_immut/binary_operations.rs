@@ -1,6 +1,6 @@
 use crate::sim_immut::energy_mass_cell_immut::EnergyMassCellImmut;
 use crate::sim_immut::layer_set_immut::{LayerSetImmut, ColumnImmut};
-use crate::transaction_manager::{Transaction, CellLocation};
+use crate::transaction_manager::{AtomicTransaction, CellLocation};
 use h3o::CellIndex;
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -30,7 +30,7 @@ pub enum NeighborType {
 /// Result of a binary operation between two cells
 #[derive(Debug, Clone)]
 pub struct BinaryOperationResult {
-    pub transactions: Vec<Transaction>,
+    pub transactions: Vec<AtomicTransaction>,
     pub energy_transferred_joules: f64,
     pub operation_type: String,
 }

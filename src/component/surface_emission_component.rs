@@ -1,14 +1,14 @@
 use crate::component::SimComponent;
-use crate::deprecated::sim::Simulation;
-use crate::deprecated::sim::energy_mass_cell::EnergyMassCell;
+use crate::sim_immut::simulation_immut::SimulationImmut;
+use crate::sim_immut::energy_mass_cell_immut::EnergyMassCellImmut;
 use crate::energy_mass::energy_mass::EnergyMass;
 
-/// Radiative cooling component that removes energy from surface layers to space
+/// Surface emission component that removes energy from surface layers to space
 ///
 /// This component simulates blackbody radiation cooling to the vacuum of space.
 /// Surface and near-surface layers lose energy based on Stefan-Boltzmann law.
 #[derive(Debug, Clone)]
-pub struct RadiativeCoolingComponent {
+pub struct SurfaceEmissionComponent {
     /// Stefan-Boltzmann constant (W⋅m⁻²⋅K⁻⁴)
     stefan_boltzmann_constant: f64,
 
@@ -31,7 +31,7 @@ pub struct RadiativeCoolingComponent {
     total_energy_radiated_j: f64,
 }
 
-impl RadiativeCoolingComponent {
+impl SurfaceEmissionComponent {
     /// Create a new radiative cooling component with realistic parameters
     pub fn new() -> Self {
         Self {
@@ -89,7 +89,7 @@ impl RadiativeCoolingComponent {
     }
 
     /// Calculate energy loss rate using "Space as Layer -1" thermal transfer
-    fn calculate_energy_loss_rate(&self, cell: &EnergyMassCell, depth_km: f64) -> f64 {
+    fn calculate_energy_loss_rate(&self, cell: &EnergyMassCellImmut, depth_km: f64) -> f64 {
         let cell_temperature_k = cell.temperature_kelvin();
         let area_m2 = cell.area() * 1e6; // Convert km² to m²
 
@@ -174,7 +174,7 @@ impl RadiativeCoolingComponent {
     /// Apply radiative cooling to a single cell
     fn apply_radiative_cooling_to_cell(
         &mut self,
-        cell: &mut EnergyMassCell,
+        cell: &mut EnergyMassCellImmut,
         depth_km: f64,
         years_per_step: f64,
     ) {
@@ -249,18 +249,18 @@ impl RadiativeCoolingComponent {
     }
 }
 
-impl SimComponent for RadiativeCoolingComponent {
+impl SimComponent for SurfaceEmissionComponent {
     fn key(&self) -> &'static str {
-        "radiative_cooling"
+        "surface_emission"
     }
 
-    fn initialize(&mut self, _sim: &mut Simulation) {
+    fn initialize(&mut self, _sim: &mut SimulationImmut) {
         // Reset performance tracking
         self.performance_ms = 0.0;
         self.total_energy_radiated_j = 0.0;
     }
 
-    fn step(&mut self, sim: &mut Simulation, _step: i64, _year: i64) {
+    fn step(&mut self, sim: &mut SimulationImmut, _step: i64, _year: i64) {
         let start_time = std::time::Instant::now();
 
         // Validation: Check simulation state
@@ -321,7 +321,7 @@ impl SimComponent for RadiativeCoolingComponent {
         }
     }
 
-    fn complete(&mut self, _sim: &Simulation) {
+    fn complete(&mut self, _sim: &SimulationImmut) {
         // Print final statistics
         println!("Radiative Cooling Component completed:");
         println!("  Total energy radiated to space: {:.2e} J", self.total_energy_radiated_j);

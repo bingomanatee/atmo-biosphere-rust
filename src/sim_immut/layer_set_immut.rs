@@ -235,37 +235,37 @@ impl ColumnImmut {
 
 
 /// Helper function to create default immutable layer set parameters
-/// Correct layer structure as discussed: 5+5+5 cells, good aspect ratios, 165km depth
-/// Designed for Resolution 3 (~60km cells) with artificial deep radiance
+/// Realistic geological materials: basalt crust → peridotite mantle → eclogite deep mantle
+/// Designed for Resolution 3 (~60km cells) with proper geological stratification
 pub fn default_layer_set_params_immut(resolution: h3o::Resolution, planet_radius_km: f64) -> Vec<LayerSetParamsImmut> {
     vec![
-        // Surface Layer (0-15km): Surface detail for plate interactions
+        // OCEANIC CRUST (0-15km): Basalt surface layer for plate interactions
         LayerSetParamsImmut {
             resolution,
             start_height_km: 0.0,
             cell_height_km: 3.0,  // 3km cells - aspect ratio 3:60 = 1:20
-            material_name: "basalt".to_string(),
-            column_count: 5,      // 5 cells = 15km (surface detail)
+            material_name: "basalt".to_string(), // Oceanic crust (3000 kg/m³)
+            column_count: 5,      // 5 cells = 15km (oceanic crust thickness)
             planet_radius_km,
             thermal_gradient_k_per_km: 25.0, // High gradient in crust
         },
-        // Mid Layer (15-65km): Heat transport
+        // UPPER MANTLE (15-65km): Peridotite lithospheric mantle
         LayerSetParamsImmut {
             resolution,
             start_height_km: 15.0,
             cell_height_km: 10.0, // 10km cells - aspect ratio 10:60 = 1:6
-            material_name: "basalt".to_string(), // Using basalt as mantle proxy (peridotite not fully defined)
-            column_count: 5,      // 5 cells = 50km (upper mantle)
+            material_name: "peridotite".to_string(), // Upper mantle (3400 kg/m³)
+            column_count: 5,      // 5 cells = 50km (lithospheric mantle)
             planet_radius_km,
             thermal_gradient_k_per_km: 0.6, // Realistic upper mantle gradient
         },
-        // Deep Layer (65-165km): Background + artificial boundary
+        // DEEP MANTLE (65-165km): Eclogite high-pressure mantle
         LayerSetParamsImmut {
             resolution,
             start_height_km: 65.0,
             cell_height_km: 20.0, // 20km cells - aspect ratio 20:60 = 1:3
-            material_name: "basalt".to_string(),
-            column_count: 5,      // 5 cells = 100km (deep background + artificial radiance)
+            material_name: "eclogite".to_string(), // High-pressure mantle (3500 kg/m³)
+            column_count: 5,      // 5 cells = 100km (deep mantle transition)
             planet_radius_km,
             thermal_gradient_k_per_km: 0.3, // Realistic deep mantle gradient
         },

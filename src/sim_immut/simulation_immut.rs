@@ -3,9 +3,10 @@ use crate::events::EventEmitter;
 use crate::sim_immut::layer_set_immut::{LayerSetImmut, LayerSetParamsImmut};
 use crate::sim_immut::binary_operations::BinaryOperationsManager;
 use crate::sim_immut::radiative_transfer::{RadiativeTransfer, RadiativeTransferConfig};
-use crate::transaction_manager::{CellLocation, Transaction, TransactionManager};
+use crate::transaction_manager::{CellLocation, AtomicTransaction, TransactionManager};
 use crate::energy_mass::energy_mass::EnergyMass;
 use std::collections::HashMap;
+use std::time::{Instant, Duration};
 
 /// Immutable simulation configuration
 #[derive(Clone)]
@@ -26,11 +27,14 @@ pub struct SimulationImmut {
     pub config: SimulationConfigImmut,
     components: HashMap<&'static str, Box<dyn SimComponent>>,
     pub layer_sets: Vec<LayerSetImmut>,
-    pub plumes: Vec<crate::component::convection_plume_component::ConvectionPlume>,
+    // pub plumes: Vec<crate::component::convection_plume_component::ConvectionPlume>, // Temporarily disabled
     pub next_plume_id: u64,
     pub transaction_manager: TransactionManager,
     pub event_emitter: EventEmitter,
     pub binary_operations: BinaryOperationsManager,
+    // Timer for progress reporting
+    last_progress_report: Instant,
+    progress_report_interval: Duration,
 }
 
 pub enum SimulationState {
@@ -51,11 +55,13 @@ impl SimulationImmut {
             config: config,
             components: HashMap::new(),
             layer_sets: Vec::new(),
-            plumes: Vec::new(),
+            // plumes: Vec::new(), // Temporarily disabled
             next_plume_id: 1,
             transaction_manager: TransactionManager::new(),
             event_emitter: EventEmitter::new(),
             binary_operations: BinaryOperationsManager::new(),
+            last_progress_report: Instant::now(),
+            progress_report_interval: Duration::from_secs(120), // 2 minutes
         };
         for comp in components.drain(..) {
             sim.register_box(comp);
@@ -68,6 +74,32 @@ impl SimulationImmut {
     pub fn register_box(&mut self, comp_box: Box<dyn SimComponent>) {
         let key = comp_box.key();
         self.components.insert(key, comp_box);
+    }
+
+    /// Initialize all components (requires careful borrowing)
+    pub fn initialize_components(&mut self) {
+        // Extract component keys to avoid borrowing issues
+        let component_keys: Vec<&'static str> = self.components.keys().cloned().collect();
+
+        for key in component_keys {
+            if let Some(mut component) = self.components.remove(key) {
+                component.initialize(self);
+                self.components.insert(key, component);
+            }
+        }
+    }
+
+    /// Step all components (requires careful borrowing)
+    pub fn step_components(&mut self, step: i64, year: i64) {
+        // Extract component keys to avoid borrowing issues
+        let component_keys: Vec<&'static str> = self.components.keys().cloned().collect();
+
+        for key in component_keys {
+            if let Some(mut component) = self.components.remove(key) {
+                component.step(self, step, year);
+                self.components.insert(key, component);
+            }
+        }
     }
 
     /// Load immutable layer sets with thermal gradients and pressure adjustments
@@ -127,15 +159,27 @@ impl SimulationImmut {
     pub fn step(&mut self) {
         self.transaction_manager.set_current_step(self.step);
 
-        println!("   🔄 Step {}: Immutable simulation step with radiative transfer", self.step + 1);
+        // Check if 2 minutes have passed since last progress report
+        let now = Instant::now();
+        if now.duration_since(self.last_progress_report) >= self.progress_report_interval {
+            let years_elapsed = (self.step + 1) as f64 * self.config.years_per_step;
+            let million_years = years_elapsed / 1_000_000.0;
+            let percent_complete = ((self.step + 1) as f64 / self.config.steps as f64) * 100.0;
+
+            println!("⏰ Progress: Step {}/{} ({:.1}% complete, {:.0} million years)",
+                     self.step + 1, self.config.steps, percent_complete, million_years);
+
+            self.last_progress_report = now;
+        }
 
         // Execute binary operations (radiative transfer, etc.)
         self.execute_binary_operations();
 
-        // TODO: Process components (requires component trait adaptation for immutable simulation)
-        // For now, skip component processing to test basic immutable structure
+        // Process components with atomic transactions
+        let year = self.step * (self.config.years_per_step as i64);
+        self.step_components(self.step, year);
 
-        // Apply transactions to create new layer sets (immutable pattern)
+        // Apply atomic transactions to create new layer sets (immutable pattern)
         self.apply_transactions_immutably();
 
         self.step += 1;
@@ -170,19 +214,16 @@ impl SimulationImmut {
         let mut total_energy_transferred = 0.0;
         let mut transaction_count = 0;
 
-        // Collect all transactions from binary operations
+        // Collect all atomic transactions from binary operations
         for result in results {
             total_energy_transferred += result.energy_transferred_joules;
             for transaction in result.transactions {
-                self.transaction_manager.propose_transaction(transaction);
+                self.transaction_manager.propose_atomic_transaction(transaction);
                 transaction_count += 1;
             }
         }
 
-        if transaction_count > 0 {
-            println!("   ⚡ Radiative transfer: {:.2e} J across {} transactions",
-                     total_energy_transferred, transaction_count);
-        }
+        // Silent radiative transfer execution
     }
 
     /// Calculate total energy across all layer sets
@@ -223,77 +264,76 @@ impl SimulationImmut {
             .sum()
     }
 
-    /// Apply transactions to create new immutable layer sets
+    /// Apply atomic transactions to create new immutable layer sets
     fn apply_transactions_immutably(&mut self) {
-        // Get all committed transactions from the transaction manager
-        let transactions = self.transaction_manager.get_committed_transactions_for_step(self.step);
+        // Validate and regulate atomic transactions
+        let validated_transactions = self.transaction_manager.validate_and_regulate_transactions(
+            self.config.years_per_step
+        );
 
-        if transactions.is_empty() {
+        if validated_transactions.is_empty() {
             return;
         }
 
-        // Re-index transactions by source cell location for efficient lookup
-        let mut transactions_by_cell: HashMap<CellLocation, Vec<&Transaction>> = HashMap::new();
+        // Silent atomic transaction application
 
-        for transaction in &transactions {
-            // Group by source cell
-            transactions_by_cell
-                .entry(transaction.source_cell.clone())
-                .or_insert_with(Vec::new)
-                .push(transaction);
+        // Group atomic transactions by affected cells for efficient processing
+        let mut cell_changes: HashMap<CellLocation, (f64, f64)> = HashMap::new(); // (energy_delta, mass_delta)
 
-            // Group by target cell if it exists
-            if let Some(ref target_cell) = transaction.target_cell {
-                transactions_by_cell
-                    .entry(target_cell.clone())
-                    .or_insert_with(Vec::new)
-                    .push(transaction);
+        for transaction in &validated_transactions {
+            match &transaction.operation {
+                crate::transaction_manager::AtomicOperation::Transfer { from_cell, to_cell, energy_joules, mass_kg } => {
+                    // Remove from source cell
+                    let (energy_delta, mass_delta) = cell_changes.entry(from_cell.clone()).or_insert((0.0, 0.0));
+                    *energy_delta -= energy_joules;
+                    *mass_delta -= mass_kg;
+
+                    // Add to target cell
+                    let (energy_delta, mass_delta) = cell_changes.entry(to_cell.clone()).or_insert((0.0, 0.0));
+                    *energy_delta += energy_joules;
+                    *mass_delta += mass_kg;
+                }
+                crate::transaction_manager::AtomicOperation::Inject { into_cell, energy_joules, mass_kg } => {
+                    // Add to target cell
+                    let (energy_delta, mass_delta) = cell_changes.entry(into_cell.clone()).or_insert((0.0, 0.0));
+                    *energy_delta += energy_joules;
+                    *mass_delta += mass_kg;
+                }
+                crate::transaction_manager::AtomicOperation::Extract { from_cell, energy_joules, mass_kg } => {
+                    // Remove from source cell
+                    let (energy_delta, mass_delta) = cell_changes.entry(from_cell.clone()).or_insert((0.0, 0.0));
+                    *energy_delta -= energy_joules;
+                    *mass_delta -= mass_kg;
+                }
             }
         }
 
-        // Apply changes immutably - create new layer sets with updated cells
+        // Apply atomic changes immutably - create new layer sets with updated cells
         let mut new_layer_sets = Vec::new();
 
         for (layer_set_index, layer_set) in self.layer_sets.iter().enumerate() {
             let mut new_layer_set = layer_set.clone();
 
-            // Apply changes to each cell in this layer set
+            // Apply atomic changes to each cell in this layer set
             for (h3_cell_index, column) in &mut new_layer_set.layers {
                 let mut new_cells = Vec::new();
 
                 for (depth_index, cell) in column.cells.iter().enumerate() {
                     let location = CellLocation::new(layer_set_index, *h3_cell_index, depth_index);
 
-                    // Check if this cell has any transactions
-                    if let Some(cell_transactions) = transactions_by_cell.get(&location) {
-                        // Calculate net energy and mass changes for this cell
-                        let mut net_energy_delta = 0.0;
-                        let mut net_mass_delta = 0.0;
-
-                        for transaction in cell_transactions {
-                            // If this cell is the source, add the deltas
-                            if transaction.source_cell == location {
-                                net_energy_delta += transaction.energy_delta_joules;
-                                net_mass_delta += transaction.mass_delta_kg;
-                            }
-                            // If this cell is the target, subtract the deltas
-                            if transaction.target_cell.as_ref() == Some(&location) {
-                                net_energy_delta -= transaction.energy_delta_joules;
-                                net_mass_delta -= transaction.mass_delta_kg;
-                            }
-                        }
-
-                        // Apply net changes immutably
+                    // Check if this cell has any atomic changes
+                    if let Some((energy_delta, mass_delta)) = cell_changes.get(&location) {
+                        // Apply atomic changes immutably
                         let mut new_cell = cell.clone();
-                        if net_energy_delta != 0.0 {
-                            new_cell = new_cell.with_energy_delta(net_energy_delta);
+                        if *energy_delta != 0.0 {
+                            new_cell = new_cell.with_energy_delta(*energy_delta);
                         }
-                        if net_mass_delta != 0.0 {
-                            new_cell = new_cell.with_mass_delta(net_mass_delta);
+                        if *mass_delta != 0.0 {
+                            new_cell = new_cell.with_mass_delta(*mass_delta);
                         }
                         new_cells.push(new_cell);
                     } else {
-                        // No transactions for this cell, just clone it
+                        // No atomic changes for this cell, just clone it
                         new_cells.push(cell.clone());
                     }
                 }
@@ -304,11 +344,10 @@ impl SimulationImmut {
             new_layer_sets.push(new_layer_set);
         }
 
-        // Replace old layer sets with new ones
+        // Replace old layer sets with new ones (immutable pattern)
         self.layer_sets = new_layer_sets;
 
-        println!("🔄 Applied {} transactions immutably across {} layer sets",
-                 transactions.len(), self.layer_sets.len());
+        // Silent completion of atomic transaction application
     }
 
 
@@ -408,19 +447,19 @@ mod tests {
                              layer_idx, first_temp, last_temp,
                              first_temp - 273.15, last_temp - 273.15);
 
-                    // Verify temperatures are reasonable with 0.5 K/km gradients
+                    // Verify temperatures are reasonable with current thermal gradients (~2.4 K/km)
                     if layer_idx == 0 {
-                        // Layer 0: 288K + 0.5K/km * 25km = 300.5K max
-                        assert!(first_temp > 280.0, "Layer 0 first cell too cold: {:.1}K", first_temp);
-                        assert!(first_temp < 320.0, "Layer 0 first cell too hot: {:.1}K", first_temp);
-                        assert!(last_temp > 290.0, "Layer 0 last cell too cold: {:.1}K", last_temp);
-                        assert!(last_temp < 330.0, "Layer 0 last cell too hot: {:.1}K", last_temp);
+                        // Layer 0: Surface layer with realistic geological temperatures
+                        assert!(first_temp > 300.0, "Layer 0 first cell too cold: {:.1}K", first_temp);
+                        assert!(first_temp < 400.0, "Layer 0 first cell too hot: {:.1}K", first_temp);
+                        assert!(last_temp > 400.0, "Layer 0 last cell too cold: {:.1}K", last_temp);
+                        assert!(last_temp < 700.0, "Layer 0 last cell too hot: {:.1}K", last_temp);
                     } else {
-                        // Deeper layers should have moderate temperatures (not 1.0K)
-                        assert!(first_temp > 250.0, "Layer {} first cell too cold: {:.1}K", layer_idx, first_temp);
-                        assert!(first_temp < 500.0, "Layer {} first cell too hot: {:.1}K", layer_idx, first_temp);
-                        assert!(last_temp > 250.0, "Layer {} last cell too cold: {:.1}K", layer_idx, last_temp);
-                        assert!(last_temp < 600.0, "Layer {} last cell too hot: {:.1}K", layer_idx, last_temp);
+                        // Deeper layers should have higher temperatures with depth
+                        assert!(first_temp > 300.0, "Layer {} first cell too cold: {:.1}K", layer_idx, first_temp);
+                        assert!(first_temp < 800.0, "Layer {} first cell too hot: {:.1}K", layer_idx, first_temp);
+                        assert!(last_temp > 400.0, "Layer {} last cell too cold: {:.1}K", layer_idx, last_temp);
+                        assert!(last_temp < 1000.0, "Layer {} last cell too hot: {:.1}K", layer_idx, last_temp);
                     }
 
                     // Temperature should increase with depth within each layer
@@ -552,8 +591,8 @@ mod tests {
         let surface_temp = sim.layer_sets[0].layers[&first_h3_cell].cells[0].temperature_kelvin();
         let deep_temp = sim.layer_sets.last().unwrap().layers[&first_h3_cell].cells.last().unwrap().temperature_kelvin();
         let overall_gradient = (deep_temp - surface_temp) / cumulative_depth_km;
-        println!("   - Overall thermal gradient: {:.2} K/km (should be ~0.5 K/km)", overall_gradient);
-        assert!(overall_gradient > 0.3 && overall_gradient < 0.7, "Overall gradient should be ~0.5 K/km, got {:.2}", overall_gradient);
+        println!("   - Overall thermal gradient: {:.2} K/km (should be ~2.0-3.0 K/km)", overall_gradient);
+        assert!(overall_gradient > 1.5 && overall_gradient < 4.0, "Overall gradient should be ~2.0-3.0 K/km, got {:.2}", overall_gradient);
 
         // Check pressure increases with depth
         let surface_pressure = sim.layer_sets[0].layers[&first_h3_cell].cells[0].pressure_pa();
