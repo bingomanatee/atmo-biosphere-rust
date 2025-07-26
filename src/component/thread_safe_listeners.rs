@@ -46,8 +46,8 @@ impl BinaryPairListener for ThreadSafeRadiativeTransferListener {
                     );
                     
                     if heat_transfer.abs() > 1e15 {
-                        transaction_manager.add_energy_delta(pair.cell_a.location, -heat_transfer, "radiative_transfer");
-                        transaction_manager.add_energy_delta(cell_b.location, heat_transfer, "radiative_transfer");
+                        transaction_manager.add_energy_delta(pair.cell_a.location.clone(), -heat_transfer, "radiative_transfer");
+                        transaction_manager.add_energy_delta(cell_b.location.clone(), heat_transfer, "radiative_transfer");
                         self.total_energy_transferred += heat_transfer.abs();
                     }
                 }
@@ -62,7 +62,7 @@ impl BinaryPairListener for ThreadSafeRadiativeTransferListener {
                 let energy_loss = radiated_power * pair.contact_area_m2 * 1000.0 * 365.25 * 24.0 * 3600.0;
                 
                 if energy_loss > 1e15 {
-                    transaction_manager.add_energy_delta(pair.cell_a.location, -energy_loss, "surface_radiation");
+                    transaction_manager.add_energy_delta(pair.cell_a.location.clone(), -energy_loss, "surface_radiation");
                     self.total_energy_transferred += energy_loss;
                 }
             }
@@ -133,38 +133,38 @@ impl BinaryPairListener for ThreadSafeCoreHeatListener {
                 self.total_pairs_processed += 1;
                 
                 if pair.cell_a.depth_km > 10.0 {
-                    let h3_cell = u64::from(pair.cell_a.location.h3_cell);
-                    let cell_index = pair.cell_a.location.cell_index;
+                    let h3_cell = u64::from(pair.cell_a.location.h3_cell_index);
+                    let cell_index = pair.cell_a.location.depth_index;
                     
                     let base_energy = self.calculate_base_energy_input(1500, 1000.0);
                     let perlin_factor = 1.0 + self.generate_perlin_variation(h3_cell, cell_index, step);
                     let energy_input = base_energy * perlin_factor;
                     
-                    transaction_manager.add_energy_delta(pair.cell_a.location, energy_input, "core_heat_perlin");
+                    transaction_manager.add_energy_delta(pair.cell_a.location.clone(), energy_input, "core_heat_perlin");
                     self.total_energy_added += energy_input;
                     
                     if self.is_hotspot(h3_cell, cell_index) {
                         let hotspot_energy = base_energy * 5.0;
-                        transaction_manager.add_energy_delta(pair.cell_a.location, hotspot_energy, "core_heat_hotspot");
+                        transaction_manager.add_energy_delta(pair.cell_a.location.clone(), hotspot_energy, "core_heat_hotspot");
                         self.total_energy_added += hotspot_energy;
                     }
                 }
                 
                 if let Some(cell_b) = &pair.cell_b {
                     if cell_b.depth_km > 10.0 {
-                        let h3_cell = u64::from(cell_b.location.h3_cell);
-                        let cell_index = cell_b.location.cell_index;
+                        let h3_cell = u64::from(cell_b.location.h3_cell_index);
+                        let cell_index = cell_b.location.depth_index;
                         
                         let base_energy = self.calculate_base_energy_input(1500, 1000.0);
                         let perlin_factor = 1.0 + self.generate_perlin_variation(h3_cell, cell_index, step);
                         let energy_input = base_energy * perlin_factor;
                         
-                        transaction_manager.add_energy_delta(cell_b.location, energy_input, "core_heat_perlin");
+                        transaction_manager.add_energy_delta(cell_b.location.clone(), energy_input, "core_heat_perlin");
                         self.total_energy_added += energy_input;
                         
                         if self.is_hotspot(h3_cell, cell_index) {
                             let hotspot_energy = base_energy * 5.0;
-                            transaction_manager.add_energy_delta(cell_b.location, hotspot_energy, "core_heat_hotspot");
+                            transaction_manager.add_energy_delta(cell_b.location.clone(), hotspot_energy, "core_heat_hotspot");
                             self.total_energy_added += hotspot_energy;
                         }
                     }
@@ -196,7 +196,7 @@ pub fn create_thread_safe_listeners() -> Vec<Box<dyn BinaryPairListener + Send>>
 mod tests {
     use super::*;
     use crate::binary_pairing::BinaryPairCell;
-    use crate::transaction_manager::CellLocation;
+    use crate::cell_location::CellLocation;
     use crate::sim_immut::energy_mass_cell_immut::EnergyMassCellImmut;
     use crate::material::MaterialPhases;
     use h3o::CellIndex;

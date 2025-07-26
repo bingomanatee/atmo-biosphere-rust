@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use h3o::CellIndex;
+use crate::cell_location::CellLocation;
 
 /// Transaction source as a simple string for easy scaling
 /// Components can identify themselves with any string (e.g., "ThermalConduction", "ConvectionPlume", etc.)
@@ -148,31 +148,7 @@ impl AtomicTransaction {
     }
 }
 
-/// Three-dimensional cell identifier for geological simulations
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct CellLocation {
-    pub layer_set_index: usize,    // Which layer set (0=crust, 1=upper mantle, etc.)
-    pub h3_cell_index: CellIndex,  // H3 geographical cell
-    pub depth_index: usize,        // Depth within the column (0=top, 1=deeper, etc.)
-}
 
-impl CellLocation {
-    pub fn new(layer_set_index: usize, h3_cell_index: CellIndex, depth_index: usize) -> Self {
-        Self {
-            layer_set_index,
-            h3_cell_index,
-            depth_index,
-        }
-    }
-
-    /// Get a human-readable description of this cell location
-    pub fn description(&self) -> String {
-        format!("Layer[{}]:H3[{}]:Depth[{}]",
-            self.layer_set_index,
-            self.h3_cell_index,
-            self.depth_index)
-    }
-}
 
 /// Cell state snapshot for validation
 #[derive(Debug, Clone)]
@@ -922,7 +898,47 @@ mod _disabled_tests {
         }
     }
 
-    // Old test helper removed - use AtomicTransaction::transfer/inject/extract instead
+    fn create_test_transaction(
+        source: String,
+        source_cell_id: u64,
+        target_cell_id: Option<u64>,
+        energy_delta: f64,
+        mass_delta: f64,
+        description: &str,
+    ) -> AtomicTransaction {
+        let source_location = CellLocation::new(0, h3o::CellIndex::try_from(source_cell_id).unwrap(), 0);
+
+        if let Some(target_id) = target_cell_id {
+            // Transfer between cells
+            let target_location = CellLocation::new(0, h3o::CellIndex::try_from(target_id).unwrap(), 0);
+            AtomicTransaction::transfer(
+                source,
+                source_location,
+                target_location,
+                energy_delta.abs(),
+                mass_delta.abs(),
+                description.to_string(),
+            ).unwrap()
+        } else if energy_delta > 0.0 || mass_delta > 0.0 {
+            // Injection (positive values)
+            AtomicTransaction::inject(
+                source,
+                source_location,
+                energy_delta.abs(),
+                mass_delta.abs(),
+                description.to_string(),
+            ).unwrap()
+        } else {
+            // Extraction (negative values)
+            AtomicTransaction::extract(
+                source,
+                source_location,
+                energy_delta.abs(),
+                mass_delta.abs(),
+                description.to_string(),
+            ).unwrap()
+        }
+    }
 
     #[test]
     fn test_transaction_manager_creation() {
@@ -963,8 +979,8 @@ mod _disabled_tests {
             "Core radiance input",
         );
 
-        tm.propose_transaction(transaction1);
-        tm.propose_transaction(transaction2);
+        tm.propose_atomic_transaction(transaction1);
+        tm.propose_atomic_transaction(transaction2);
 
         let (pending, _) = tm.get_transaction_stats();
         assert_eq!(pending, 2);
@@ -1003,7 +1019,7 @@ mod _disabled_tests {
             "Excessive plume transport",
         );
 
-        tm.propose_transaction(excessive_transaction);
+        tm.propose_atomic_transaction(excessive_transaction);
 
         // Validate with 10,000 years per step
         let regulated = tm.validate_and_regulate_transactions(10000.0);
@@ -1059,7 +1075,7 @@ mod _disabled_tests {
         ];
 
         for transaction in transactions {
-            tm.propose_transaction(transaction);
+            tm.propose_atomic_transaction(transaction);
         }
 
         // Total: 0.8% energy, 0.06% mass - should exceed limits and be scaled
@@ -1096,7 +1112,7 @@ mod _disabled_tests {
                 &format!("Step {} radiance", step),
             );
 
-            tm.propose_transaction(transaction);
+            tm.propose_atomic_transaction(transaction);
             let regulated = tm.validate_and_regulate_transactions(10000.0);
             tm.commit_transactions(regulated);
         }
@@ -1142,8 +1158,8 @@ mod _disabled_tests {
             "Mass transfer in",
         );
 
-        tm.propose_transaction(transfer_out);
-        tm.propose_transaction(transfer_in);
+        tm.propose_atomic_transaction(transfer_out);
+        tm.propose_atomic_transaction(transfer_in);
 
         let regulated = tm.validate_and_regulate_transactions(10000.0);
 
@@ -1188,7 +1204,7 @@ mod _disabled_tests {
                 "At limit transaction",
             );
 
-            tm.propose_transaction(transaction);
+            tm.propose_atomic_transaction(transaction);
             let regulated = tm.validate_and_regulate_transactions(years_per_step);
 
             // Should be allowed without scaling

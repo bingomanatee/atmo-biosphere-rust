@@ -3,15 +3,16 @@ use crate::events::EventEmitter;
 use crate::sim_immut::layer_set_immut::{LayerSetImmut, LayerSetParamsImmut};
 use crate::sim_immut::binary_operations::BinaryOperationsManager;
 use crate::sim_immut::radiative_transfer::{RadiativeTransfer, RadiativeTransferConfig};
-use crate::transaction_manager::{AtomicTransaction, TransactionManager};
-use crate::transaction_manager_simple::{SimpleTransactionManager, CellLocation};
+use crate::transaction_manager::TransactionManager;
+use crate::transaction_manager_simple::SimpleTransactionManager;
+use crate::cell_location::CellLocation;
 use rayon::prelude::*;
 use crate::binary_pairing::BinaryPairingSystem;
 use crate::energy_mass::energy_mass::EnergyMass;
 use std::collections::HashMap;
 use std::time::{Instant, Duration};
 
-/// Immutable simulation configuration
+
 #[derive(Clone)]
 pub struct SimulationConfigImmut {
     pub steps: u64,
@@ -22,7 +23,7 @@ pub struct SimulationConfigImmut {
     pub radiative_transfer_config: RadiativeTransferConfig,
 }
 
-/// Immutable simulation that uses immutable layer sets for better performance
+
 pub struct SimulationImmut {
     pub state: SimulationState,
     pub step: i64,
@@ -68,7 +69,7 @@ impl SimulationImmut {
             event_emitter: EventEmitter::new(),
             binary_operations: BinaryOperationsManager::new(),
             last_progress_report: Instant::now(),
-            progress_report_interval: Duration::from_secs(120), // 2 minutes
+            progress_report_interval: Duration::from_secs(120),
         };
         for comp in components.drain(..) {
             sim.register_box(comp);
@@ -84,7 +85,7 @@ impl SimulationImmut {
         self.components.insert(key, comp_box);
     }
 
-    /// Process one simulation step using binary pairing system
+
     pub fn step_with_binary_pairing(&mut self) {
         let step = self.step;
         let year = step * self.config.years_per_step as i64;
@@ -166,7 +167,7 @@ impl SimulationImmut {
         }
 
         // Apply changes in parallel (this is safe because each change affects a different cell)
-        all_changes.par_iter().for_each(|(location, energy_delta_opt, mass_delta_opt)| {
+        all_changes.par_iter().for_each(|(_location, _energy_delta_opt, _mass_delta_opt)| {
             // Note: We can't modify self.layer_sets in parallel, so we'll collect the changes
             // and apply them sequentially. The parallel part will be the calculation.
         });
@@ -175,8 +176,8 @@ impl SimulationImmut {
         // TODO: Implement true parallel application when we have immutable layer sets
         for (location, energy_delta_opt, mass_delta_opt) in all_changes {
             if let Some(layer_set) = self.layer_sets.get_mut(location.layer_set_index) {
-                if let Some(column) = layer_set.layers.get_mut(&location.h3_cell) {
-                    if let Some(cell) = column.cells.get_mut(location.cell_index) {
+                if let Some(column) = layer_set.layers.get_mut(&location.h3_cell_index) {
+                    if let Some(cell) = column.cells.get_mut(location.depth_index) {
                         let mut new_cell = cell.clone();
 
                         if let Some(energy_delta) = energy_delta_opt {
@@ -202,8 +203,6 @@ impl SimulationImmut {
 
     /// Initialize binary pairing system with geological components
     pub fn initialize_binary_pairing_system(&mut self) {
-        println!("🔗 Initializing Binary Pairing System...");
-
         // Initialize pairs from current simulation state
         // We need to work around borrowing issues by creating a temporary reference
         let layer_sets_ref = &self.layer_sets;
@@ -211,8 +210,6 @@ impl SimulationImmut {
 
         // Add geological component listeners
         self.add_geological_listeners();
-
-        println!("✅ Binary pairing system initialized with geological components");
     }
 
     /// Add all geological component listeners
@@ -229,41 +226,34 @@ impl SimulationImmut {
         // Add core heat listener
         self.binary_pairing_system.add_listener(Box::new(
             CoreHeatListener::new()
-                .with_earth_wattage(47.0)    // 47 TW Earth heat flow
-                .with_hotspot_count(10)      // 10 major hotspots
-                .with_perlin_variation(0.15) // ±15% energy variation
+                .with_earth_wattage(47.0)
+                .with_hotspot_count(10)
+                .with_perlin_variation(0.15)
         ));
-
-        println!("✅ Added geological listeners: RadiativeTransfer + CoreHeat");
     }
 
-    /// Initialize all components (requires careful borrowing)
     pub fn initialize_components(&mut self) {
-        // Extract component keys to avoid borrowing issues
-        let component_keys: Vec<&'static str> = self.components.keys().cloned().collect();
+        let mut components = std::mem::take(&mut self.components);
 
-        for key in component_keys {
-            if let Some(mut component) = self.components.remove(key) {
-                component.initialize(self);
-                self.components.insert(key, component);
-            }
+        for component in components.values_mut() {
+            component.initialize(self);
         }
+
+        self.components = components;
     }
 
-    /// Step all components (requires careful borrowing)
+
     pub fn step_components(&mut self, step: i64, year: i64) {
-        // Extract component keys to avoid borrowing issues
-        let component_keys: Vec<&'static str> = self.components.keys().cloned().collect();
+        let mut components = std::mem::take(&mut self.components);
 
-        for key in component_keys {
-            if let Some(mut component) = self.components.remove(key) {
-                component.step(self, step, year);
-                self.components.insert(key, component);
-            }
+        for component in components.values_mut() {
+            component.step(self, step, year);
         }
+
+        // Put components back
+        self.components = components;
     }
 
-    /// Load immutable layer sets with thermal gradients and pressure adjustments
     pub fn load_layer_sets(&mut self) {
         let mut cumulative_bottom_km = 0.0;
         let mut current_temperature = self.config.surface_temp_k;
@@ -492,7 +482,7 @@ impl SimulationImmut {
         let start_time = Instant::now();
 
         while self.steps < self.config.steps {
-            let step_start = Instant::now();
+            let _step_start = Instant::now();
 
             // Process one step with binary pairing
             self.step_with_binary_pairing();
@@ -536,7 +526,7 @@ mod tests {
             steps: 1,
             years_per_step: 1000.0,
             warmup_steps: 0,
-            surface_temp_k: 288.15, // 15°C surface temperature
+            surface_temp_k: 288.15,
             layer_set_params: default_layer_set_params_immut(Resolution::Three, 6371.0),
             radiative_transfer_config: RadiativeTransferConfig::default(),
         };
@@ -596,7 +586,7 @@ mod tests {
             steps: 1,
             years_per_step: 1000.0,
             warmup_steps: 0,
-            surface_temp_k: 288.15, // 15°C surface temperature
+            surface_temp_k: 288.15,
             layer_set_params: default_layer_set_params_immut(Resolution::Three, 6371.0),
             radiative_transfer_config: RadiativeTransferConfig::default(),
         };

@@ -1,6 +1,6 @@
 use crate::binary_pairing::{BinaryPairListener, BinaryPair, BinaryPairType};
 use crate::transaction_manager_simple::SimpleTransactionManager;
-use crate::energy_mass::energy_mass::EnergyMass;
+// use crate::energy_mass::energy_mass::EnergyMass; // Unused
 
 /// Core Heat Component using Binary Pair Listener pattern
 /// Adds irregular heat input via Perlin noise and hotspots
@@ -105,8 +105,8 @@ impl BinaryPairListener for CoreHeatListener {
                 
                 // Only add heat to deeper cells (avoid surface interference)
                 if pair.cell_a.depth_km > 10.0 {
-                    let h3_cell = u64::from(pair.cell_a.location.h3_cell);
-                    let cell_index = pair.cell_a.location.cell_index;
+                    let h3_cell = u64::from(pair.cell_a.location.h3_cell_index);
+                    let cell_index = pair.cell_a.location.depth_index;
                     
                     // Calculate base energy input (assuming 1500 total cells, 1000 years per step)
                     let base_energy = self.calculate_base_energy_input(1500, 1000.0);
@@ -117,7 +117,7 @@ impl BinaryPairListener for CoreHeatListener {
                     
                     // Add base energy with Perlin variation
                     transaction_manager.add_energy_delta(
-                        pair.cell_a.location,
+                        pair.cell_a.location.clone(),
                         energy_input,
                         "core_heat_perlin",
                     );
@@ -127,7 +127,7 @@ impl BinaryPairListener for CoreHeatListener {
                     if self.is_hotspot(h3_cell, cell_index) {
                         let hotspot_energy = base_energy * 5.0; // 5x concentrated energy
                         transaction_manager.add_energy_delta(
-                            pair.cell_a.location,
+                            pair.cell_a.location.clone(),
                             hotspot_energy,
                             "core_heat_hotspot",
                         );
@@ -138,15 +138,15 @@ impl BinaryPairListener for CoreHeatListener {
                 // Also process cell_b if it exists and is deep enough
                 if let Some(cell_b) = &pair.cell_b {
                     if cell_b.depth_km > 10.0 {
-                        let h3_cell = u64::from(cell_b.location.h3_cell);
-                        let cell_index = cell_b.location.cell_index;
+                        let h3_cell = u64::from(cell_b.location.h3_cell_index);
+                        let cell_index = cell_b.location.depth_index;
                         
                         let base_energy = self.calculate_base_energy_input(1500, 1000.0);
                         let perlin_factor = 1.0 + self.generate_perlin_variation(h3_cell, cell_index, step);
                         let energy_input = base_energy * perlin_factor;
                         
                         transaction_manager.add_energy_delta(
-                            cell_b.location,
+                            cell_b.location.clone(),
                             energy_input,
                             "core_heat_perlin",
                         );
@@ -155,7 +155,7 @@ impl BinaryPairListener for CoreHeatListener {
                         if self.is_hotspot(h3_cell, cell_index) {
                             let hotspot_energy = base_energy * 5.0;
                             transaction_manager.add_energy_delta(
-                                cell_b.location,
+                                cell_b.location.clone(),
                                 hotspot_energy,
                                 "core_heat_hotspot",
                             );

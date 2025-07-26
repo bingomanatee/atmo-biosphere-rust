@@ -1,12 +1,13 @@
-use atmo_biosphere_rust::transaction_manager::{Transaction, TransactionType, CellLocation, TransactionManager};
+use atmo_biosphere_rust::transaction_manager::{Transaction, TransactionType, TransactionManager};
+use atmo_biosphere_rust::cell_location::CellLocation;
 use h3o::CellIndex;
 
 fn create_test_location(layer_set: usize, h3_index: u64, depth: usize) -> CellLocation {
-    CellLocation {
-        layer_set_index: layer_set,
-        h3_cell_index: CellIndex::try_from(h3_index).unwrap(),
-        depth_index: depth,
-    }
+    CellLocation::new(
+        layer_set,
+        CellIndex::try_from(h3_index).unwrap(),
+        depth,
+    )
 }
 
 fn main() {

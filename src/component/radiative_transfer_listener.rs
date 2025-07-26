@@ -1,6 +1,6 @@
 use crate::binary_pairing::{BinaryPairListener, BinaryPair, BinaryPairType};
 use crate::transaction_manager_simple::SimpleTransactionManager;
-use crate::energy_mass::energy_mass::EnergyMass;
+// use crate::energy_mass::energy_mass::EnergyMass; // Unused
 
 /// Radiative Transfer Component using Binary Pair Listener pattern
 #[derive(Debug, Clone)]
@@ -85,12 +85,12 @@ impl BinaryPairListener for RadiativeTransferListener {
                     if heat_transfer.abs() > 1e15 {
                         // Energy flows from hot to cold
                         transaction_manager.add_energy_delta(
-                            pair.cell_a.location,
+                            pair.cell_a.location.clone(),
                             -heat_transfer,
                             "radiative_transfer",
                         );
                         transaction_manager.add_energy_delta(
-                            cell_b.location,
+                            cell_b.location.clone(),
                             heat_transfer,
                             "radiative_transfer",
                         );
@@ -115,7 +115,7 @@ impl BinaryPairListener for RadiativeTransferListener {
                 
                 if energy_loss > 1e15 {
                     transaction_manager.add_energy_delta(
-                        pair.cell_a.location,
+                        pair.cell_a.location.clone(),
                         -energy_loss,
                         "surface_radiation",
                     );

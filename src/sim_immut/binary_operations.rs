@@ -1,6 +1,7 @@
 use crate::sim_immut::energy_mass_cell_immut::EnergyMassCellImmut;
-use crate::sim_immut::layer_set_immut::{LayerSetImmut, ColumnImmut};
-use crate::transaction_manager::{AtomicTransaction, CellLocation};
+use crate::sim_immut::layer_set_immut::LayerSetImmut;
+use crate::transaction_manager::AtomicTransaction;
+use crate::cell_location::CellLocation;
 use h3o::CellIndex;
 use rayon::prelude::*;
 use std::collections::HashMap;

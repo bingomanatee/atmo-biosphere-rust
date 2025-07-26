@@ -11,23 +11,23 @@ pub struct MaterialPhase {
     pub thermal_transmission_r0_min: f32,
     pub thermal_transmission_r0_max: f32,
     pub melt_temp: f32,
-    pub melt_temp_min: Option<f32>,
-    pub melt_temp_max: Option<f32>,
+    pub melt_temp_min: f32,
+    pub melt_temp_max: f32,
     pub latent_heat_fusion: f32,
     pub boil_temp: f32,
     pub latent_heat_vapor: f32,
-    pub gas_interference_factor: Option<f32>,
+    pub gas_interference_factor: f32,
     pub thermal_conduction_modifier_dimensionless: f32,
     // Additional fields found in JSON
     pub thermal_expansivity_per_k: f32,
     pub dynamic_viscosity_pa_s: f64, // This can be very large (e.g., 1e+25)
     pub bulk_modulus_pa: f64,   // This is very large (e.g., 130000000000)
-    pub activation_energy_j_per_mol: Option<f32>,
-    pub activation_volume_m3_per_mol: Option<f32>,
+    pub activation_energy_j_per_mol: f32,
+    pub activation_volume_m3_per_mol: f32,
     // Radiative properties for heat transfer
-    pub emissivity: Option<f32>,
-    pub absorptivity: Option<f32>,
-    pub reflectivity: Option<f32>,
+    pub emissivity: f32,
+    pub absorptivity: f32,
+    pub reflectivity: f32,
 }
 
 /// Parameters for mass calculation from pressure and volume
@@ -279,10 +279,10 @@ impl MaterialPhase {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Material {
-    pub solid: Option<MaterialPhase>,
-    pub liquid: Option<MaterialPhase>,
-    pub gas: Option<MaterialPhase>,
-    pub emission_compounds: Option<HashMap<String, f64>>,
+    pub solid: MaterialPhase,
+    pub liquid: MaterialPhase,
+    pub gas: MaterialPhase,
+    pub emission_compounds: HashMap<String, f64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,6 +1,7 @@
 use crate::binary_pairing::{BinaryPair, BinaryPairListener, BinaryPairType};
-use crate::transaction_manager_simple::{SimpleTransactionManager, CellLocation};
-use std::sync::{Arc, Mutex};
+use crate::transaction_manager_simple::SimpleTransactionManager;
+use crate::cell_location::CellLocation;
+// use std::sync::{Arc, Mutex}; // Unused for now
 use std::thread;
 use std::sync::mpsc;
 use std::collections::HashMap;
@@ -190,8 +191,8 @@ impl ParallelBinaryPairingSystem {
                                         cell_a: BinaryPairCell {
                                             location: CellLocation {
                                                 layer_set_index: layer_set_idx,
-                                                h3_cell: *h3_cell,
-                                                cell_index: cell_idx,
+                                                h3_cell_index: *h3_cell,
+                                                depth_index: cell_idx,
                                             },
                                             cell: cell.clone(),
                                             depth_km: layer_set.start_height_km + (cell_idx as f64 * 10.0),
@@ -199,8 +200,8 @@ impl ParallelBinaryPairingSystem {
                                         cell_b: Some(BinaryPairCell {
                                             location: CellLocation {
                                                 layer_set_index: layer_set_idx,
-                                                h3_cell: neighbor_h3,
-                                                cell_index: cell_idx,
+                                                h3_cell_index: neighbor_h3,
+                                                depth_index: cell_idx,
                                             },
                                             cell: neighbor_cell.clone(),
                                             depth_km: layer_set.start_height_km + (cell_idx as f64 * 10.0),
@@ -234,8 +235,8 @@ impl ParallelBinaryPairingSystem {
                         cell_a: BinaryPairCell {
                             location: CellLocation {
                                 layer_set_index: layer_set_idx,
-                                h3_cell: *h3_cell,
-                                cell_index: cell_idx,
+                                h3_cell_index: *h3_cell,
+                                depth_index: cell_idx,
                             },
                             cell: upper_cell.clone(),
                             depth_km: layer_set.start_height_km + (cell_idx as f64 * 10.0),
@@ -243,8 +244,8 @@ impl ParallelBinaryPairingSystem {
                         cell_b: Some(BinaryPairCell {
                             location: CellLocation {
                                 layer_set_index: layer_set_idx,
-                                h3_cell: *h3_cell,
-                                cell_index: cell_idx + 1,
+                                h3_cell_index: *h3_cell,
+                                depth_index: cell_idx + 1,
                             },
                             cell: lower_cell.clone(),
                             depth_km: layer_set.start_height_km + ((cell_idx + 1) as f64 * 10.0),
@@ -271,8 +272,8 @@ impl ParallelBinaryPairingSystem {
                         cell_a: BinaryPairCell {
                             location: CellLocation {
                                 layer_set_index: 0,
-                                h3_cell: *h3_cell,
-                                cell_index: 0,
+                                h3_cell_index: *h3_cell,
+                                depth_index: 0,
                             },
                             cell: surface_cell.clone(),
                             depth_km: 0.0,
@@ -346,7 +347,7 @@ fn process_pairs_in_thread(
 }
 
 /// Clone listeners for thread safety
-fn clone_listeners(listeners: &[Box<dyn BinaryPairListener + Send>]) -> Vec<Box<dyn BinaryPairListener + Send>> {
+fn clone_listeners(_listeners: &[Box<dyn BinaryPairListener + Send>]) -> Vec<Box<dyn BinaryPairListener + Send>> {
     // Create new instances for each thread
     use crate::component::thread_safe_listeners::{ThreadSafeRadiativeTransferListener, ThreadSafeCoreHeatListener};
 

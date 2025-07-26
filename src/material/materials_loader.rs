@@ -62,31 +62,31 @@ impl MaterialsLoader {
     fn parse_material(material_name: &str, material_data: &Value) -> Result<Material, String> {
         let material_obj = material_data.as_object()
             .ok_or("Material data must be an object")?;
-        
+
         let solid = if let Some(solid_data) = material_obj.get("solid") {
-            Some(Self::parse_material_phase(material_name, solid_data)?)
+            Self::parse_material_phase(material_name, solid_data)?
         } else {
-            None
+            return Err(format!("Material '{}' is missing required solid phase", material_name));
         };
 
         let liquid = if let Some(liquid_data) = material_obj.get("liquid") {
-            Some(Self::parse_material_phase(material_name, liquid_data)?)
+            Self::parse_material_phase(material_name, liquid_data)?
         } else {
-            None
+            return Err(format!("Material '{}' is missing required liquid phase", material_name));
         };
 
         let gas = if let Some(gas_data) = material_obj.get("gas") {
-            Some(Self::parse_material_phase(material_name, gas_data)?)
+            Self::parse_material_phase(material_name, gas_data)?
         } else {
-            None
+            return Err(format!("Material '{}' is missing required gas phase", material_name));
         };
-        
+
         let emission_compounds = if let Some(compounds_data) = material_obj.get("emission_compounds") {
-            Some(Self::parse_emission_compounds(compounds_data)?)
+            Self::parse_emission_compounds(compounds_data)?
         } else {
-            None
+            HashMap::new() // Default to empty compounds
         };
-        
+
         Ok(Material {
             solid,
             liquid,
@@ -192,25 +192,31 @@ impl MaterialsLoader {
                     273.15 // Default to water freezing point
                 }
             }),
-            melt_temp_min: get_optional_u32("melt_temp_min"),
-            melt_temp_max: get_optional_u32("melt_temp_max"),
+            melt_temp_min: get_optional_u32("melt_temp_min").unwrap_or_else(|| {
+                // Default to melt_temp - 10K if not provided
+                get_optional_f32("melt_temp").unwrap_or(273.15) - 10.0
+            }),
+            melt_temp_max: get_optional_u32("melt_temp_max").unwrap_or_else(|| {
+                // Default to melt_temp + 10K if not provided
+                get_optional_f32("melt_temp").unwrap_or(273.15) + 10.0
+            }),
             latent_heat_fusion: get_required_f32("latent_heat_fusion")?,
             boil_temp: get_required_f32("boil_temp")?,
             latent_heat_vapor: get_required_f32("latent_heat_vapor")?,
             // Gas interference factor is fractional (0.0-1.0), scale by 1000 to preserve precision
-            gas_interference_factor: get_fractional_as_u32("gas_interference_factor", 1000.0),
+            gas_interference_factor: get_fractional_as_u32("gas_interference_factor", 1000.0).unwrap_or(10.0), // Default 0.01
             // Thermal conduction modifier is fractional, scale by 1000
             thermal_conduction_modifier_dimensionless: get_fractional_as_u32("thermal_conduction_modifier_dimensionless", 1000.0).expect("thermal_conduction_modifier_dimensionless is required"),
             // Thermal expansivity is very small (e.g., 1e-05), scale by 1e9 to preserve precision
             thermal_expansivity_per_k: get_fractional_as_u32("thermal_expansivity_per_k", 1e9).expect("thermal_expansivity_per_k is required"),
             dynamic_viscosity_pa_s: get_required_u64("dynamic_viscosity_pa_s")?,
             bulk_modulus_pa: get_required_u64("bulk_modulus_pa")?,
-            activation_energy_j_per_mol: get_optional_u32("activation_energy_j_per_mol"),
-            activation_volume_m3_per_mol: get_fractional_as_u32("activation_volume_m3_per_mol", 1e9),
+            activation_energy_j_per_mol: get_optional_u32("activation_energy_j_per_mol").unwrap_or(200000.0), // Default 200kJ/mol
+            activation_volume_m3_per_mol: get_fractional_as_u32("activation_volume_m3_per_mol", 1e9).unwrap_or(10.0), // Default 1e-08 m³/mol
             // Radiative properties for heat transfer
-            emissivity: get_optional_u32("emissivity"),
-            absorptivity: get_optional_u32("absorptivity"),
-            reflectivity: get_optional_u32("reflectivity"),
+            emissivity: get_optional_u32("emissivity").unwrap_or(800.0), // Default 0.8
+            absorptivity: get_optional_u32("absorptivity").unwrap_or(800.0), // Default 0.8
+            reflectivity: get_optional_u32("reflectivity").unwrap_or(200.0), // Default 0.2
             // cool_temp fields removed - using boil_temp as maximum
         })
     }
@@ -239,14 +245,12 @@ impl MaterialsLoader {
             .ok_or_else(|| format!("Material '{}' not found", material_name))?;
         
         let phase_properties = match phase {
-            MaterialPhases::Solid => material.solid.as_ref(),
-            MaterialPhases::Liquid => material.liquid.as_ref(),
-            MaterialPhases::Gas => material.gas.as_ref(),
+            MaterialPhases::Solid => &material.solid,
+            MaterialPhases::Liquid => &material.liquid,
+            MaterialPhases::Gas => &material.gas,
         };
-        
-        phase_properties
-            .ok_or_else(|| format!("Phase '{}' not found for material '{}'", phase.as_str(), material_name))
-            .map(|p| Arc::new(p.clone())) // Only clone once when creating Arc
+
+        Ok(Arc::new(phase_properties.clone()))
     }
 
     /// Get all available material names
@@ -262,17 +266,8 @@ impl MaterialsLoader {
         let material = materials.get(material_name)
             .ok_or_else(|| format!("Material '{}' not found", material_name))?;
 
-        let mut phases = Vec::new();
-        if material.solid.is_some() {
-            phases.push(MaterialPhases::Solid);
-        }
-        if material.liquid.is_some() {
-            phases.push(MaterialPhases::Liquid);
-        }
-        if material.gas.is_some() {
-            phases.push(MaterialPhases::Gas);
-        }
-
+        // All materials now have all phases
+        let phases = vec![MaterialPhases::Solid, MaterialPhases::Liquid, MaterialPhases::Gas];
         Ok(phases)
     }
 
@@ -283,12 +278,12 @@ impl MaterialsLoader {
     }
 
     /// Get emission compounds for a material
-    pub fn get_emission_compounds(material_name: &str) -> Result<Option<HashMap<String, f64>>, String> {
+    pub fn get_emission_compounds(material_name: &str) -> Result<HashMap<String, f64>, String> {
         let materials = Self::load_materials()?;
-        
+
         let material = materials.get(material_name)
             .ok_or_else(|| format!("Material '{}' not found", material_name))?;
-        
+
         Ok(material.emission_compounds.clone())
     }
 

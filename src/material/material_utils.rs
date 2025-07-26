@@ -6,8 +6,8 @@ pub struct MaterialUtils;
 
 impl MaterialUtils {
     /// Convert gas interference factor from scaled f32 back to original f64 (0.0-1.0 range)
-    pub fn gas_interference_factor_as_f64(phase: &MaterialPhase) -> Option<f64> {
-        phase.gas_interference_factor.map(|val| val as f64 / 1000.0)
+    pub fn gas_interference_factor_as_f64(phase: &MaterialPhase) -> f64 {
+        phase.gas_interference_factor as f64 / 1000.0
     }
 
     /// Convert thermal conduction modifier from scaled f32 back to original f64
@@ -21,8 +21,8 @@ impl MaterialUtils {
     }
 
     /// Convert activation volume from scaled f32 back to original f64 (very small values like 1e-05)
-    pub fn activation_volume_m3_per_mol_as_f64(phase: &MaterialPhase) -> Option<f64> {
-        phase.activation_volume_m3_per_mol.map(|val| val as f64 / 1e9)
+    pub fn activation_volume_m3_per_mol_as_f64(phase: &MaterialPhase) -> f64 {
+        phase.activation_volume_m3_per_mol as f64 / 1e9
     }
 
     /// Convert dynamic viscosity from f64 to f64 (can be very large values like 1e+25)
@@ -64,11 +64,8 @@ impl MaterialUtils {
     }
 
     /// Get melting temperature range as f64 tuple for calculations
-    pub fn melt_temp_range_as_f64(phase: &MaterialPhase) -> Option<(f64, f64)> {
-        match (phase.melt_temp_min, phase.melt_temp_max) {
-            (Some(min), Some(max)) => Some((min as f64, max as f64)),
-            _ => None,
-        }
+    pub fn melt_temp_range_as_f64(phase: &MaterialPhase) -> (f64, f64) {
+        (phase.melt_temp_min as f64, phase.melt_temp_max as f64)
     }
 
     /// Get boiling temperature as f64 for calculations
@@ -87,8 +84,23 @@ impl MaterialUtils {
     }
 
     /// Get activation energy as f64 for calculations
-    pub fn activation_energy_j_per_mol_as_f64(phase: &MaterialPhase) -> Option<f64> {
-        phase.activation_energy_j_per_mol.map(|val| val as f64)
+    pub fn activation_energy_j_per_mol_as_f64(phase: &MaterialPhase) -> f64 {
+        phase.activation_energy_j_per_mol as f64
+    }
+
+    /// Get emissivity as f64 for calculations
+    pub fn emissivity_as_f64(phase: &MaterialPhase) -> f64 {
+        phase.emissivity as f64 / 1000.0
+    }
+
+    /// Get absorptivity as f64 for calculations
+    pub fn absorptivity_as_f64(phase: &MaterialPhase) -> f64 {
+        phase.absorptivity as f64 / 1000.0
+    }
+
+    /// Get reflectivity as f64 for calculations
+    pub fn reflectivity_as_f64(phase: &MaterialPhase) -> f64 {
+        phase.reflectivity as f64 / 1000.0
     }
 
     /// Get cooling temperature range as f64 tuple for calculations
@@ -104,15 +116,13 @@ impl MaterialUtils {
             phase.thermal_transmission_r0_min, phase.thermal_transmission_r0_max);
 
         println!("Melting temperature: {} K", phase.melt_temp);
-        if let Some((min, max)) = Self::melt_temp_range_as_f64(phase) {
-            println!("Melting temperature range: {:.2} - {:.2} K", min, max);
-        }
+        let (min, max) = Self::melt_temp_range_as_f64(phase);
+        println!("Melting temperature range: {:.2} - {:.2} K", min, max);
         println!("Boiling temperature: {} K", phase.boil_temp);
         println!("Latent heat of fusion: {} J/kg", phase.latent_heat_fusion);
         println!("Latent heat of vaporization: {} J/kg", phase.latent_heat_vapor);
-        if let Some(factor) = Self::gas_interference_factor_as_f64(phase) {
-            println!("Gas interference factor: {:.3}", factor);
-        }
+        let factor = Self::gas_interference_factor_as_f64(phase);
+        println!("Gas interference factor: {:.3}", factor);
         let modifier = Self::thermal_conduction_modifier_dimensionless_as_f64(phase);
         println!("Thermal conduction modifier (dimensionless): {:.3}", modifier);
         let expansivity = Self::thermal_expansivity_per_k_as_f64(phase);
@@ -121,12 +131,10 @@ impl MaterialUtils {
         println!("Dynamic viscosity: {:.2e} Pa·s", viscosity);
         let modulus = Self::bulk_modulus_pa_as_f64(phase);
         println!("Bulk modulus: {:.2e} Pa", modulus);
-        if let Some(energy) = Self::activation_energy_j_per_mol_as_f64(phase) {
-            println!("Activation energy: {:.0} J/mol", energy);
-        }
-        if let Some(volume) = Self::activation_volume_m3_per_mol_as_f64(phase) {
-            println!("Activation volume: {:.2e} m³/mol", volume);
-        }
+        let energy = Self::activation_energy_j_per_mol_as_f64(phase);
+        println!("Activation energy: {:.0} J/mol", energy);
+        let volume = Self::activation_volume_m3_per_mol_as_f64(phase);
+        println!("Activation volume: {:.2e} m³/mol", volume);
         // cool_temp fields removed - using boil_temp as maximum
         println!("Maximum temperature: {:.2} K (10x boil temp)", phase.boil_temp * 10.0);
         println!();
@@ -144,9 +152,8 @@ mod tests {
             .expect("Failed to load basalt solid phase");
 
         // Test that conversion functions work
-        if let Some(factor) = MaterialUtils::gas_interference_factor_as_f64(&phase) {
-            assert!(factor >= 0.0 && factor <= 1.0, "Gas interference factor should be between 0 and 1");
-        }
+        let factor = MaterialUtils::gas_interference_factor_as_f64(&phase);
+        assert!(factor >= 0.0 && factor <= 1.0, "Gas interference factor should be between 0 and 1");
 
         let expansivity = MaterialUtils::thermal_expansivity_per_k_as_f64(&phase);
         assert!(expansivity > 0.0, "Thermal expansivity should be positive");

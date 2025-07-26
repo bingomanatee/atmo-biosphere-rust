@@ -4,6 +4,7 @@ pub mod transaction_manager_simple;
 pub mod binary_pairing;
 pub mod component;
 pub mod events;
+pub mod cell_location;
 
 // Deprecated modules moved to deprecated_backup/
 

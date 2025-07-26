@@ -107,7 +107,7 @@ impl SurfaceEmissionComponent {
         let thermal_conductivity = 2.5; // W/(m⋅K) for rock
 
         // Space as "Layer -1": T = 2.7K, mass = 0, energy = 0
-        let space_temperature = self.min_temperature_k; // 2.7K cosmic background
+        let _space_temperature = self.min_temperature_k; // 2.7K cosmic background
 
         // Solve for surface temperature where: heat_conduction_in = S-B_radiation_out
         // k × A × (T_cell - T_surface) / thickness = ε × σ × A × T_surface⁴
@@ -307,7 +307,7 @@ impl SimComponent for SurfaceEmissionComponent {
 
         // Validation: Check energy conservation and reasonable behavior
         if cells_processed > 0 {
-            let avg_energy_per_cell = total_initial_energy / cells_processed as f64;
+            let _avg_energy_per_cell = total_initial_energy / cells_processed as f64;
             let energy_loss_fraction = self.total_energy_radiated_j / total_initial_energy;
 
             // Warn if we're losing more than 10% of total energy per step

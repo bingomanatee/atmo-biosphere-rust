@@ -1,10 +1,11 @@
 use crate::sim_immut::simulation_immut::SimulationImmut;
 use crate::sim_immut::energy_mass_cell_immut::EnergyMassCellImmut;
-use crate::transaction_manager_simple::{SimpleTransactionManager, CellLocation};
+use crate::transaction_manager_simple::SimpleTransactionManager;
+use crate::cell_location::CellLocation;
 
-use std::collections::{HashSet, HashMap};
-use std::sync::{Arc, Mutex};
-use rayon::prelude::*;
+use std::collections::HashSet;
+// use std::sync::{Arc, Mutex}; // Unused for now
+// use rayon::prelude::*; // Unused for now
 
 /// Standard binary pairing types used throughout the simulation
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -166,16 +167,16 @@ impl BinaryPairingSystem {
                         let heat_transfer = thermal_conductivity * pair.contact_area_m2 * temp_diff / pair.distance_m * time_step_seconds;
 
                         if heat_transfer.abs() > 1e15 {
-                            changes.push((pair.cell_a.location, -heat_transfer, 0.0));
-                            changes.push((cell_b.location, heat_transfer, 0.0));
+                            changes.push((pair.cell_a.location.clone(), -heat_transfer, 0.0));
+                            changes.push((cell_b.location.clone(), heat_transfer, 0.0));
                         }
                     }
                 }
 
                 // Core heat calculation (for deep cells)
                 if pair.cell_a.depth_km > 10.0 {
-                    let h3_cell = u64::from(pair.cell_a.location.h3_cell);
-                    let cell_index = pair.cell_a.location.cell_index;
+                    let h3_cell = u64::from(pair.cell_a.location.h3_cell_index);
+                    let cell_index = pair.cell_a.location.depth_index;
 
                     let base_energy = 2e18;
                     let noise_factor = (h3_cell as f64 * 0.001 + step as f64 * 0.0001).sin() * 0.15;
@@ -183,14 +184,14 @@ impl BinaryPairingSystem {
                     let hotspot_multiplier = if (h3_cell + cell_index as u64) % 150 == 0 { 5.0 } else { 1.0 };
                     let final_energy = energy_input * hotspot_multiplier;
 
-                    changes.push((pair.cell_a.location, final_energy, 0.0));
+                    changes.push((pair.cell_a.location.clone(), final_energy, 0.0));
                 }
 
                 // Process cell_b for core heat if it exists
                 if let Some(cell_b) = &pair.cell_b {
                     if cell_b.depth_km > 10.0 {
-                        let h3_cell = u64::from(cell_b.location.h3_cell);
-                        let cell_index = cell_b.location.cell_index;
+                        let h3_cell = u64::from(cell_b.location.h3_cell_index);
+                        let cell_index = cell_b.location.depth_index;
 
                         let base_energy = 2e18;
                         let noise_factor = (h3_cell as f64 * 0.001 + step as f64 * 0.0001).sin() * 0.15;
@@ -198,7 +199,7 @@ impl BinaryPairingSystem {
                         let hotspot_multiplier = if (h3_cell + cell_index as u64) % 150 == 0 { 5.0 } else { 1.0 };
                         let final_energy = energy_input * hotspot_multiplier;
 
-                        changes.push((cell_b.location, final_energy, 0.0));
+                        changes.push((cell_b.location.clone(), final_energy, 0.0));
                     }
                 }
             }
@@ -213,7 +214,7 @@ impl BinaryPairingSystem {
                 let energy_loss = radiated_power * pair.contact_area_m2 * 1000.0 * 365.25 * 24.0 * 3600.0;
 
                 if energy_loss > 1e15 {
-                    changes.push((pair.cell_a.location, -energy_loss, 0.0));
+                    changes.push((pair.cell_a.location.clone(), -energy_loss, 0.0));
                 }
             }
             BinaryPairType::Custom(_) => {}
@@ -242,16 +243,16 @@ impl BinaryPairingSystem {
                         let heat_transfer = thermal_conductivity * pair.contact_area_m2 * temp_diff / pair.distance_m * time_step_seconds;
 
                         if heat_transfer.abs() > 1e15 {
-                            transaction_manager.add_energy_delta(pair.cell_a.location, -heat_transfer, "radiative_transfer");
-                            transaction_manager.add_energy_delta(cell_b.location, heat_transfer, "radiative_transfer");
+                            transaction_manager.add_energy_delta(pair.cell_a.location.clone(), -heat_transfer, "radiative_transfer");
+                            transaction_manager.add_energy_delta(cell_b.location.clone(), heat_transfer, "radiative_transfer");
                         }
                     }
                 }
 
                 // Core heat calculation (for deep cells)
                 if pair.cell_a.depth_km > 10.0 {
-                    let h3_cell = u64::from(pair.cell_a.location.h3_cell);
-                    let cell_index = pair.cell_a.location.cell_index;
+                    let h3_cell = u64::from(pair.cell_a.location.h3_cell_index);
+                    let cell_index = pair.cell_a.location.depth_index;
 
                     let base_energy = 2e18;
                     let noise_factor = (h3_cell as f64 * 0.001 + step as f64 * 0.0001).sin() * 0.15;
@@ -259,14 +260,14 @@ impl BinaryPairingSystem {
                     let hotspot_multiplier = if (h3_cell + cell_index as u64) % 150 == 0 { 5.0 } else { 1.0 };
                     let final_energy = energy_input * hotspot_multiplier;
 
-                    transaction_manager.add_energy_delta(pair.cell_a.location, final_energy, "core_heat");
+                    transaction_manager.add_energy_delta(pair.cell_a.location.clone(), final_energy, "core_heat");
                 }
 
                 // Process cell_b for core heat if it exists
                 if let Some(cell_b) = &pair.cell_b {
                     if cell_b.depth_km > 10.0 {
-                        let h3_cell = u64::from(cell_b.location.h3_cell);
-                        let cell_index = cell_b.location.cell_index;
+                        let h3_cell = u64::from(cell_b.location.h3_cell_index);
+                        let cell_index = cell_b.location.depth_index;
 
                         let base_energy = 2e18;
                         let noise_factor = (h3_cell as f64 * 0.001 + step as f64 * 0.0001).sin() * 0.15;
@@ -274,7 +275,7 @@ impl BinaryPairingSystem {
                         let hotspot_multiplier = if (h3_cell + cell_index as u64) % 150 == 0 { 5.0 } else { 1.0 };
                         let final_energy = energy_input * hotspot_multiplier;
 
-                        transaction_manager.add_energy_delta(cell_b.location, final_energy, "core_heat");
+                        transaction_manager.add_energy_delta(cell_b.location.clone(), final_energy, "core_heat");
                     }
                 }
             }
@@ -289,7 +290,7 @@ impl BinaryPairingSystem {
                 let energy_loss = radiated_power * pair.contact_area_m2 * 1000.0 * 365.25 * 24.0 * 3600.0;
 
                 if energy_loss > 1e15 {
-                    transaction_manager.add_energy_delta(pair.cell_a.location, -energy_loss, "surface_radiation");
+                    transaction_manager.add_energy_delta(pair.cell_a.location.clone(), -energy_loss, "surface_radiation");
                 }
             }
             BinaryPairType::Custom(_) => {}
@@ -325,8 +326,8 @@ impl BinaryPairingSystem {
                                         cell_a: BinaryPairCell {
                                             location: CellLocation {
                                                 layer_set_index: layer_set_idx,
-                                                h3_cell: *h3_cell,
-                                                cell_index: cell_idx,
+                                                h3_cell_index: *h3_cell,
+                                                depth_index: cell_idx,
                                             },
                                             cell: cell.clone(),
                                             depth_km: layer_set.start_height_km + (cell_idx as f64 * 10.0),
@@ -334,8 +335,8 @@ impl BinaryPairingSystem {
                                         cell_b: Some(BinaryPairCell {
                                             location: CellLocation {
                                                 layer_set_index: layer_set_idx,
-                                                h3_cell: neighbor_h3,
-                                                cell_index: cell_idx,
+                                                h3_cell_index: neighbor_h3,
+                                                depth_index: cell_idx,
                                             },
                                             cell: neighbor_cell.clone(),
                                             depth_km: layer_set.start_height_km + (cell_idx as f64 * 10.0),
@@ -368,8 +369,8 @@ impl BinaryPairingSystem {
                         cell_a: BinaryPairCell {
                             location: CellLocation {
                                 layer_set_index: layer_set_idx,
-                                h3_cell: *h3_cell,
-                                cell_index: cell_idx,
+                                h3_cell_index: *h3_cell,
+                                depth_index: cell_idx,
                             },
                             cell: upper_cell.clone(),
                             depth_km: layer_set.start_height_km + (cell_idx as f64 * 10.0),
@@ -377,8 +378,8 @@ impl BinaryPairingSystem {
                         cell_b: Some(BinaryPairCell {
                             location: CellLocation {
                                 layer_set_index: layer_set_idx,
-                                h3_cell: *h3_cell,
-                                cell_index: cell_idx + 1,
+                                h3_cell_index: *h3_cell,
+                                depth_index: cell_idx + 1,
                             },
                             cell: lower_cell.clone(),
                             depth_km: layer_set.start_height_km + ((cell_idx + 1) as f64 * 10.0),
@@ -404,8 +405,8 @@ impl BinaryPairingSystem {
                         cell_a: BinaryPairCell {
                             location: CellLocation {
                                 layer_set_index: 0,
-                                h3_cell: *h3_cell,
-                                cell_index: 0,
+                                h3_cell_index: *h3_cell,
+                                depth_index: 0,
                             },
                             cell: surface_cell.clone(),
                             depth_km: 0.0,
@@ -472,8 +473,8 @@ impl BinaryPairingSystem {
                                         cell_a: BinaryPairCell {
                                             location: CellLocation {
                                                 layer_set_index: layer_set_idx,
-                                                h3_cell: *h3_cell,
-                                                cell_index: cell_idx,
+                                                h3_cell_index: *h3_cell,
+                                                depth_index: cell_idx,
                                             },
                                             cell: cell.clone(),
                                             depth_km: layer_set.start_height_km + (cell_idx as f64 * 10.0),
@@ -481,8 +482,8 @@ impl BinaryPairingSystem {
                                         cell_b: Some(BinaryPairCell {
                                             location: CellLocation {
                                                 layer_set_index: layer_set_idx,
-                                                h3_cell: neighbor_h3,
-                                                cell_index: cell_idx,
+                                                h3_cell_index: neighbor_h3,
+                                                depth_index: cell_idx,
                                             },
                                             cell: neighbor_cell.clone(),
                                             depth_km: layer_set.start_height_km + (cell_idx as f64 * 10.0),
@@ -514,8 +515,8 @@ impl BinaryPairingSystem {
                         cell_a: BinaryPairCell {
                             location: CellLocation {
                                 layer_set_index: layer_set_idx,
-                                h3_cell: *h3_cell,
-                                cell_index: cell_idx,
+                                h3_cell_index: *h3_cell,
+                                depth_index: cell_idx,
                             },
                             cell: upper_cell.clone(),
                             depth_km: layer_set.start_height_km + (cell_idx as f64 * 10.0),
@@ -523,8 +524,8 @@ impl BinaryPairingSystem {
                         cell_b: Some(BinaryPairCell {
                             location: CellLocation {
                                 layer_set_index: layer_set_idx,
-                                h3_cell: *h3_cell,
-                                cell_index: cell_idx + 1,
+                                h3_cell_index: *h3_cell,
+                                depth_index: cell_idx + 1,
                             },
                             cell: lower_cell.clone(),
                             depth_km: layer_set.start_height_km + ((cell_idx + 1) as f64 * 10.0),
@@ -549,8 +550,8 @@ impl BinaryPairingSystem {
                         cell_a: BinaryPairCell {
                             location: CellLocation {
                                 layer_set_index: 0,
-                                h3_cell: *h3_cell,
-                                cell_index: 0,
+                                h3_cell_index: *h3_cell,
+                                depth_index: 0,
                             },
                             cell: surface_cell.clone(),
                             depth_km: 0.0,

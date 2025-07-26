@@ -1,5 +1,5 @@
 use crate::sim_immut::binary_operations::{CellPair, BinaryOperationResult};
-use crate::transaction_manager::{AtomicTransaction, CellLocation};
+use crate::transaction_manager::AtomicTransaction;
 use crate::energy_mass::energy_mass::EnergyMass;
 
 /// Stefan-Boltzmann constant (W⋅m⁻²⋅K⁻⁴)
@@ -178,20 +178,9 @@ impl RadiativeTransfer {
     fn calculate_emissivity(&self, cell: &crate::sim_immut::energy_mass_cell_immut::EnergyMassCellImmut) -> f64 {
         let material = cell.material();
 
-        // Use static emissivity from material properties if available
-        let base_emissivity = material.emissivity
-            .map(|e| e as f64)
-            .unwrap_or_else(|| {
-                // Fallback to hardcoded values for materials without emissivity data
-                match cell.material_name.as_str() {
-                    "basalt" => 0.95,      // High emissivity for dark volcanic rock
-                    "granite" => 0.85,     // Moderate emissivity for light rock
-                    "steel" | "iron" => 0.60,  // Lower emissivity for metals
-                    "water" => 0.96,       // Very high emissivity for water
-                    "air" => 0.80,         // Moderate emissivity for gases
-                    _ => 0.85,             // Default moderate emissivity
-                }
-            });
+        // Use static emissivity from material properties
+        let base_emissivity = material.emissivity as f64 / 1000.0; // Convert from scaled value
+
 
         // Apply minimal temperature-dependent adjustment for extreme temperatures only
         let temperature = cell.temperature_kelvin();
@@ -252,6 +241,7 @@ mod tests {
     use super::*;
     use crate::sim_immut::energy_mass_cell_immut::{EnergyMassCellImmut, EnergyMassCellImmutProps};
     use h3o::CellIndex;
+    use crate::cell_location::CellLocation;
 
     #[test]
     fn test_radiative_transfer_hot_to_cold() {

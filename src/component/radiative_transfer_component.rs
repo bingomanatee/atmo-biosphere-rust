@@ -1,7 +1,8 @@
 use crate::component::SimComponent;
 use crate::sim_immut::simulation_immut::SimulationImmut;
 use crate::sim_immut::radiative_transfer::RadiativeTransferConfig;
-use crate::transaction_manager_simple::{SimpleTransactionManager, CellLocation};
+use crate::transaction_manager_simple::SimpleTransactionManager;
+use crate::cell_location::CellLocation;
 use crate::energy_mass::energy_mass::EnergyMass;
 
 /// Radiative Transfer Component - handles heat transfer between neighboring cells
@@ -80,17 +81,17 @@ impl RadiativeTransferComponent {
                                 
                                 if heat_transfer.abs() > 1e15 { // Minimum energy threshold
                                     // Create transactions for energy transfer
-                                    let source_location = CellLocation {
-                                        layer_set_index: layer_set_idx,
-                                        h3_cell: *h3_cell,
-                                        cell_index: cell_idx,
-                                    };
-                                    
-                                    let target_location = CellLocation {
-                                        layer_set_index: layer_set_idx,
-                                        h3_cell: neighbor_h3,
-                                        cell_index: cell_idx,
-                                    };
+                                    let source_location = CellLocation::new(
+                                        layer_set_idx,
+                                        *h3_cell,
+                                        cell_idx,
+                                    );
+
+                                    let target_location = CellLocation::new(
+                                        layer_set_idx,
+                                        neighbor_h3,
+                                        cell_idx,
+                                    );
                                     
                                     // Energy flows from hot to cold
                                     simple_manager.add_energy_delta(source_location, -heat_transfer, "radiative_transfer");
@@ -123,17 +124,17 @@ impl RadiativeTransferComponent {
                     );
                     
                     if heat_transfer.abs() > 1e15 {
-                        let upper_location = CellLocation {
-                            layer_set_index: layer_set_idx,
-                            h3_cell: *h3_cell,
-                            cell_index: cell_idx,
-                        };
-                        
-                        let lower_location = CellLocation {
-                            layer_set_index: layer_set_idx,
-                            h3_cell: *h3_cell,
-                            cell_index: cell_idx + 1,
-                        };
+                        let upper_location = CellLocation::new(
+                            layer_set_idx,
+                            *h3_cell,
+                            cell_idx,
+                        );
+
+                        let lower_location = CellLocation::new(
+                            layer_set_idx,
+                            *h3_cell,
+                            cell_idx + 1,
+                        );
                         
                         simple_manager.add_energy_delta(lower_location, -heat_transfer, "radiative_transfer");
                         simple_manager.add_energy_delta(upper_location, heat_transfer, "radiative_transfer");
@@ -165,11 +166,11 @@ impl RadiativeTransferComponent {
                             sim.config.years_per_step * seconds_per_year; // Joules
                         
                         if energy_loss > 1e15 {
-                            let surface_location = CellLocation {
-                                layer_set_index: layer_set_idx,
-                                h3_cell: *h3_cell,
-                                cell_index: 0,
-                            };
+                            let surface_location = CellLocation::new(
+                                layer_set_idx,
+                                *h3_cell,
+                                0,
+                            );
                             
                             simple_manager.add_energy_delta(surface_location, -energy_loss, "surface_radiation");
                             transaction_count += 1;
@@ -209,7 +210,7 @@ impl SimComponent for RadiativeTransferComponent {
         println!("   - Surface radiation: Stefan-Boltzmann to space");
     }
     
-    fn step(&mut self, sim: &mut SimulationImmut, _step: i64, _year: i64) {
+    fn step(&mut self, _sim: &mut SimulationImmut, _step: i64, _year: i64) {
         // This is where we would integrate with the simple transaction system
         // For now, we'll use the existing built-in radiative transfer
         // TODO: Replace built-in system with this component

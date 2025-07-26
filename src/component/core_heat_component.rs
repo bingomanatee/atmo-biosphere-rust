@@ -519,11 +519,11 @@ impl CoreHeatComponent {
                 let is_upwell = rng.random_bool(0.7);
 
                 // Random max_size (0-10 scale)
-                let max_size = rng.gen_range(0.0..=10.0);
+                let max_size = rng.random_range(0.0..=10.0);
 
                 // Lifetime from config range
                 let (min_life, max_life) = self.core_heat_config.max_min_lifespan_years;
-                let lifetime = rng.gen_range(min_life..=max_life);
+                let lifetime = rng.random_range(min_life..=max_life);
 
                 // Max radius from config range, scaled by max_size
                 let (min_radius, max_radius) = self.core_heat_config.max_min_radius_km;
@@ -578,7 +578,7 @@ impl CoreHeatComponent {
                 // Apply energy to the deepest cell in each column using transaction system
                 if let Some(_deepest_cell) = column.cells.last() {
                     // Create transaction for energy injection
-                    let cell_location = crate::transaction_manager::CellLocation::new(
+                    let cell_location = crate::cell_location::CellLocation::new(
                         deepest_layer_idx,
                         *cell_index,
                         column.cells.len() - 1, // Last cell index
@@ -721,7 +721,7 @@ impl CoreHeatComponent {
                     drifted_z * self.spatial_scale,
                     self.current_year * self.temporal_scale,
                 ]);
-                let variation_factor = 1.0 + (noise_value * self.noise_amplitude);
+                let _variation_factor = 1.0 + (noise_value * self.noise_amplitude);
 
                 // Perlin noise variation calculated (output suppressed)
             }
@@ -801,7 +801,7 @@ impl CoreHeatComponent {
             let plume_created = self.evaluate_plume_creation_by_index(sim, hotspot_index, accumulated_energy, current_radius, years_per_step);
 
             if plume_created.is_some() {
-                let (plume_id, creation_type) = plume_created.unwrap();
+                let (_plume_id, _creation_type) = plume_created.unwrap();
                 plumes_created += 1;
                 total_plume_energy += accumulated_energy;
 
@@ -820,7 +820,7 @@ impl CoreHeatComponent {
     }
 
     /// Create a plume from a hotspot with concentrated energy
-    fn create_hotspot_plume(&self, sim: &mut SimulationImmut, hotspot: &Hotspot, energy_joules: f64, radius_km: f64) -> u64 {
+    fn create_hotspot_plume(&self, sim: &mut SimulationImmut, hotspot: &Hotspot, energy_joules: f64, _radius_km: f64) -> u64 {
         
 
         // Get hotspot geographic location
@@ -832,7 +832,7 @@ impl CoreHeatComponent {
         let source_layer_index = sim.layer_sets.len().saturating_sub(1);
 
         // Calculate initial depth (bottom of deepest layer)
-        let initial_depth_km = if let Some(deepest_layer) = sim.layer_sets.last() {
+        let _initial_depth_km = if let Some(deepest_layer) = sim.layer_sets.last() {
             if let Some(column) = deepest_layer.layers.get(&hotspot.cell_index) {
                 if let Some(_deepest_cell) = column.cells.last() {
                     // Estimate depth based on layer structure
@@ -849,9 +849,9 @@ impl CoreHeatComponent {
 
         // Calculate plume properties based on hotspot energy
         let plume_mass_kg = energy_joules / 1e6; // Rough conversion: 1 MJ per kg
-        let plume_temperature_k = 1800.0 + (energy_joules / 1e22) * 200.0; // Hotter with more energy
-        let plume_velocity_km_per_year = 10.0 + (energy_joules / 1e22) * 5.0; // Faster with more energy
-        let buoyancy_force = energy_joules / 1e20; // Simplified buoyancy calculation
+        let _plume_temperature_k = 1800.0 + (energy_joules / 1e22) * 200.0; // Hotter with more energy
+        let _plume_velocity_km_per_year = 10.0 + (energy_joules / 1e22) * 5.0; // Faster with more energy
+        let _buoyancy_force = energy_joules / 1e20; // Simplified buoyancy calculation
 
         // Instead of creating a plume, inject energy directly using atomic transactions
         // Find the target cell in the deepest layer
@@ -859,7 +859,7 @@ impl CoreHeatComponent {
             if let Some(column) = deepest_layer.layers.get(&hotspot.cell_index) {
                 if let Some(_deepest_cell) = column.cells.last() {
                     // Create cell location for the deepest cell
-                    let cell_location = crate::transaction_manager::CellLocation::new(
+                    let cell_location = crate::cell_location::CellLocation::new(
                         source_layer_index,
                         hotspot.cell_index,
                         column.cells.len() - 1, // Last cell index
@@ -944,7 +944,7 @@ impl CoreHeatComponent {
         let deepest_layer_idx = sim.layer_sets.len().saturating_sub(1);
 
         // Debug: Print calculation details for first hotspot
-        let debug = hotspot.is_upwell && self.current_year < 1500.0;
+        let _debug = hotspot.is_upwell && self.current_year < 1500.0;
 
         if let Some(deepest_layer) = sim.layer_sets.get(deepest_layer_idx) {
             if let Some(column) = deepest_layer.layers.get(&hotspot.cell_index) {
@@ -1066,62 +1066,6 @@ impl CoreHeatComponent {
     /// Compare our radiance output with Earth-based reference values (silent)
     fn compare_with_earth_radiance(&self, _years_per_step: f64) {
         // Radiance comparison calculations (output suppressed for clean simulation)
-        return;
-
-        // Our model parameters
-        let base_energy_per_year = self.base_energy_per_cell_per_year;
-        let max_hotspot_multiplier = 7.7; // From test output
-        let max_hotspot_energy_per_year = base_energy_per_year * max_hotspot_multiplier;
-
-        // Convert to watts (J/year → W)
-        let seconds_per_year = 365.25 * 24.0 * 3600.0;
-        let base_power_w = base_energy_per_year / seconds_per_year;
-        let max_hotspot_power_w = max_hotspot_energy_per_year / seconds_per_year;
-
-        // Estimate cell area (H3 Resolution 2 cells)
-        // H3 Resolution 2 has ~86,000 cells globally, so each cell ≈ 5.9e12 m²
-        let earth_surface_area_m2 = 5.1e14; // Earth's surface area
-        let h3_res2_cell_count = 86000.0; // Approximate
-        let cell_area_m2 = earth_surface_area_m2 / h3_res2_cell_count;
-
-        // Calculate heat flux (W/m²)
-        let base_heat_flux_w_m2 = base_power_w / cell_area_m2;
-        let max_hotspot_heat_flux_w_m2 = max_hotspot_power_w / cell_area_m2;
-
-        println!("🔥 OUR MODEL OUTPUT:");
-        println!("   Total energy: {:.2e} J/cell/year = {:.2e} W/cell", base_energy_per_year, base_power_w);
-        println!("   Background ({}%): {:.2e} J/cell/year = {:.2e} W/cell",
-            (self.core_heat_config.background_energy_fraction() * 100.0) as u32,
-            base_energy_per_year * self.core_heat_config.background_energy_fraction(),
-            base_power_w * self.core_heat_config.background_energy_fraction());
-        println!("   Hotspot ({}%): {:.2e} J/cell/year = {:.2e} W/cell",
-            (self.core_heat_config.hotspot_energy_fraction() * 100.0) as u32,
-            max_hotspot_energy_per_year, max_hotspot_power_w);
-        println!("   Cell area (H3 Res2): {:.2e} m²", cell_area_m2);
-        println!("   Background heat flux: {:.3} W/m²", base_heat_flux_w_m2 * self.core_heat_config.background_energy_fraction());
-        println!("   Max hotspot flux: {:.1} W/m²", max_hotspot_heat_flux_w_m2);
-
-        println!("\n🌍 EARTH REFERENCE VALUES (from RADIANCE.md):");
-        println!("   Global average: 0.086 W/m²");
-        println!("   Continental: 0.065 W/m²");
-        println!("   Oceanic: 0.096 W/m²");
-        println!("   Peak hotspots: 1-2 W/m² (up to 70 W/m² at vents)");
-
-        println!("\n📈 COMPARISON:");
-        let base_vs_global = base_heat_flux_w_m2 / 0.086;
-        let hotspot_vs_peak = max_hotspot_heat_flux_w_m2 / 2.0;
-
-        if base_vs_global > 0.5 && base_vs_global < 2.0 {
-            println!("   ✅ Base flux: {:.1}x Earth average (reasonable)", base_vs_global);
-        } else {
-            println!("   ⚠️  Base flux: {:.1}x Earth average (may need adjustment)", base_vs_global);
-        }
-
-        if hotspot_vs_peak > 0.5 && hotspot_vs_peak < 5.0 {
-            println!("   ✅ Hotspot flux: {:.1}x Earth peak hotspots (reasonable)", hotspot_vs_peak);
-        } else {
-            println!("   ⚠️  Hotspot flux: {:.1}x Earth peak hotspots (may need adjustment)", hotspot_vs_peak);
-        }
     }
 }
 
@@ -1131,7 +1075,8 @@ impl Default for CoreHeatComponent {
     }
 }
 
-// #[cfg(test)] - Tests disabled due to deprecated module references
+// Tests disabled due to deprecated module references
+#[allow(dead_code)]
 #[cfg(disabled)]
 mod tests {
     use crate::constants::EARTH_RADIUS_KM_F64;

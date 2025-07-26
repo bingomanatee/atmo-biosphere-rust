@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use crate::cell_location::CellLocation;
 
 /// Simple hash-based transaction system for energy/mass tracking
 /// Replaces the complex atomic transaction system when scaling is not needed
@@ -19,13 +20,7 @@ pub struct SimpleTransactionManager {
     total_transactions: u64,
 }
 
-/// Simplified cell location identifier
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CellLocation {
-    pub layer_set_index: usize,
-    pub h3_cell: h3o::CellIndex,
-    pub cell_index: usize,
-}
+
 
 /// Simplified transaction for debug mode only
 #[derive(Debug, Clone)]
@@ -239,11 +234,11 @@ mod tests {
     fn test_simple_transaction_manager() {
         let mut manager = SimpleTransactionManager::new();
         
-        let location = CellLocation {
-            layer_set_index: 0,
-            h3_cell: CellIndex::try_from(0x8a1fb46622dffff_u64).unwrap(),
-            cell_index: 0,
-        };
+        let location = CellLocation::new(
+            0,
+            CellIndex::try_from(0x8a1fb46622dffff_u64).unwrap(),
+            0,
+        );
         
         // Add energy delta
         manager.add_energy_delta(location.clone(), 100.0, "test");
@@ -271,11 +266,11 @@ mod tests {
     fn test_debug_mode() {
         let mut manager = SimpleTransactionManager::new_with_debug();
         
-        let location = CellLocation {
-            layer_set_index: 0,
-            h3_cell: CellIndex::try_from(0x8a1fb46622dffff_u64).unwrap(),
-            cell_index: 0,
-        };
+        let location = CellLocation::new(
+            0,
+            CellIndex::try_from(0x8a1fb46622dffff_u64).unwrap(),
+            0,
+        );
         
         manager.add_energy_delta(location.clone(), 100.0, "radiative_transfer");
         

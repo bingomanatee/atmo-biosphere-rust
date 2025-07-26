@@ -1,4 +1,5 @@
-use atmo_biosphere_rust::transaction_manager::{AtomicTransaction, TransactionManager, CellLocation};
+use atmo_biosphere_rust::transaction_manager::{AtomicTransaction, TransactionManager};
+use atmo_biosphere_rust::cell_location::CellLocation;
 use h3o::CellIndex;
 
 #[test]
