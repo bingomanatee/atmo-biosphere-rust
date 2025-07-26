@@ -483,6 +483,40 @@ impl SimulationImmut {
 
         self.set_state(SimulationState::Paused);
     }
+
+    /// Run simulation using binary pairing system
+    pub fn run_with_binary_pairing(&mut self) {
+        println!("🚀 Starting simulation with integrated binary pairing system...");
+
+        self.state = SimulationState::Running;
+        let start_time = Instant::now();
+
+        while self.steps < self.config.steps {
+            let step_start = Instant::now();
+
+            // Process one step with binary pairing
+            self.step_with_binary_pairing();
+
+            // Progress reporting
+            if start_time.elapsed().as_secs() >= 120 || self.steps == self.config.steps {
+                self.report_binary_pairing_progress(&start_time);
+            }
+        }
+
+        self.state = SimulationState::Stopped;
+        println!("✅ Binary pairing simulation completed!");
+    }
+
+    /// Report progress for binary pairing simulation
+    fn report_binary_pairing_progress(&self, start_time: &Instant) {
+        let elapsed = start_time.elapsed();
+        let progress = self.steps as f64 / self.config.steps as f64 * 100.0;
+        let million_years = self.steps as f64 * self.config.years_per_step / 1_000_000.0;
+
+        println!("⏰ Progress: {:.1}% complete ({:.1} million years)", progress, million_years);
+        println!("   - Steps completed: {}/{}", self.steps, self.config.steps);
+        println!("   - Elapsed time: {:.1} minutes", elapsed.as_secs_f64() / 60.0);
+    }
 }
 
 #[cfg(test)]
@@ -552,6 +586,8 @@ mod tests {
 
     #[test]
     fn test_geological_layers_reality_check() {
+        use crate::reporting::GeologicalReporter;
+
         println!("\n🌍 Geological Layers Reality Check");
         println!("==================================");
 
@@ -568,48 +604,27 @@ mod tests {
         let mut components: Vec<Box<dyn SimComponent>> = vec![];
         let sim = SimulationImmut::new(config, &mut components);
 
-        // Get the first H3 cell for consistent analysis
+        // Use GeologicalReporter for detailed output
+        GeologicalReporter::print_detailed_thermal_structure(&sim, 0.0);
+
+        // Get the first H3 cell for testing
         let first_h3_cell = sim.layer_sets[0].layers.keys().next().copied()
             .expect("Should have at least one H3 cell");
-
-        println!("📍 Analyzing H3 cell: {}", first_h3_cell);
-        println!("🌍 Planet radius: 6371.0 km");
-        println!();
 
         let mut cumulative_depth_km = 0.0;
         let mut total_mass_kg = 0.0;
         let mut total_energy_j = 0.0;
 
-        // Header for the table
-        println!("{:<12} {:<8} {:<12} {:<12} {:<12} {:<12} {:<12} {:<12} {:<12} {:<8} {:<8}",
-                 "Layer", "Cell", "Depth(km)", "Temp(K)", "Temp(°C)", "Mass/km²", "Energy/km²", "Pressure(Pa)", "Density", "Phase", "Material");
-        println!("{}", "=".repeat(150));
-
-        // Walk through each layer set and all its cells
+        // Walk through each layer set and perform reality checks
         for (layer_idx, layer_set) in sim.layer_sets.iter().enumerate() {
-            let layer_name = get_layer_name(layer_idx);
-
             // Get the column for our target H3 cell
             if let Some(column) = layer_set.layers.get(&first_h3_cell) {
-                // Walk through each cell in the column (top to bottom)
+                // Test each cell in the column
                 for (cell_idx, cell) in column.cells.iter().enumerate() {
                     let cell_depth_km = cumulative_depth_km + (cell_idx as f64 * sim.config.layer_set_params[layer_idx].cell_height_km);
                     let temp_k = cell.temperature_kelvin();
-                    let temp_c = temp_k - 273.15;
                     let mass_kg = cell.mass_kg();
-                    let energy_j = cell.energy_joules();
                     let pressure_pa = cell.pressure_pa();
-                    let phase = format!("{:?}", cell.material_phase);
-                    let material = &sim.config.layer_set_params[layer_idx].material_name;
-
-                    // Calculate per-area values
-                    let area_km2 = cell.area();
-                    let mass_per_km2 = mass_kg / area_km2;
-                    let energy_per_km2 = energy_j / area_km2;
-                    let density_kg_m3 = mass_kg / (cell.volume_km3() * 1e9); // Convert km³ to m³
-
-                    println!("{:<12} {:<8} {:<12.1} {:<12.1} {:<12.1} {:<12.2e} {:<12.2e} {:<12.2e} {:<12.0} {:<8} {:<8}",
-                             layer_name, cell_idx, cell_depth_km, temp_k, temp_c, mass_per_km2, energy_per_km2, pressure_pa, density_kg_m3, phase, material);
 
                     // Accumulate totals
                     total_mass_kg += mass_kg;
@@ -629,36 +644,10 @@ mod tests {
             }
         }
 
-        println!("{}", "=".repeat(150));
-        println!("📊 Summary Statistics:");
+        println!("\n📊 Test Summary:");
         println!("   - Total depth analyzed: {:.1} km", cumulative_depth_km);
         println!("   - Total mass in column: {:.2e} kg", total_mass_kg);
         println!("   - Total energy in column: {:.2e} J", total_energy_j);
-        println!("   - Average mass per cell: {:.2e} kg", total_mass_kg / sim.total_cells() as f64);
-        println!("   - Average energy per cell: {:.2e} J", total_energy_j / sim.total_cells() as f64);
-
-        // Layer-by-layer summary
-        println!("\n🏔️  Layer Set Summary:");
-        for (layer_idx, layer_set) in sim.layer_sets.iter().enumerate() {
-            if let Some(column) = layer_set.layers.get(&first_h3_cell) {
-                let first_cell = &column.cells[0];
-                let last_cell = &column.cells[column.cells.len() - 1];
-                let layer_mass: f64 = column.cells.iter().map(|c| c.mass_kg()).sum();
-                let layer_energy: f64 = column.cells.iter().map(|c| c.energy_joules()).sum();
-                let avg_density = layer_mass / (column.cells.len() as f64 * first_cell.volume_km3() * 1e9); // kg/m³
-
-                println!("   Layer {}: {} ({} cells)", layer_idx, get_layer_name(layer_idx), column.cells.len());
-                println!("      Temperature: {:.1}K to {:.1}K ({:.1}°C to {:.1}°C)",
-                         first_cell.temperature_kelvin(), last_cell.temperature_kelvin(),
-                         first_cell.temperature_kelvin() - 273.15, last_cell.temperature_kelvin() - 273.15);
-                println!("      Pressure: {:.2e} to {:.2e} Pa", first_cell.pressure_pa(), last_cell.pressure_pa());
-                println!("      Total mass: {:.2e} kg", layer_mass);
-                println!("      Total energy: {:.2e} J", layer_energy);
-                println!("      Average density: {:.0} kg/m³", avg_density);
-                println!("      Material: {}", sim.config.layer_set_params[layer_idx].material_name);
-                println!("      Thermal gradient: {:.1} K/km", sim.config.layer_set_params[layer_idx].thermal_gradient_k_per_km);
-            }
-        }
 
         // Geological reality checks
         println!("\n✅ Geological Reality Checks:");
@@ -702,81 +691,6 @@ mod tests {
         println!("   ✅ All geological patterns are realistic!");
         println!("   ✅ Temperature, pressure, and mass increase appropriately with depth");
         println!("   ✅ Materials remain in solid phase as expected");
-    }
-
-
-
-    /// Apply binary pairing transactions to actual simulation cells using immutable pattern
-    fn apply_binary_pairing_transactions(&mut self) {
-        let energy_deltas = self.simple_transaction_manager.get_all_energy_deltas().clone();
-        let mass_deltas = self.simple_transaction_manager.get_all_mass_deltas().clone();
-
-        // Apply energy deltas using immutable constructor pattern
-        for (location, energy_delta) in energy_deltas {
-            if let Some(layer_set) = self.layer_sets.get_mut(location.layer_set_index) {
-                if let Some(column) = layer_set.layers.get_mut(&location.h3_cell) {
-                    if let Some(cell) = column.cells.get_mut(location.cell_index) {
-                        let current_energy = cell.energy_joules();
-                        let new_energy = (current_energy + energy_delta).max(0.0);
-                        *cell = cell.with_energy(new_energy);
-                    }
-                }
-            }
-        }
-
-        // Apply mass deltas using immutable constructor pattern
-        for (location, mass_delta) in mass_deltas {
-            if let Some(layer_set) = self.layer_sets.get_mut(location.layer_set_index) {
-                if let Some(column) = layer_set.layers.get_mut(&location.h3_cell) {
-                    if let Some(cell) = column.cells.get_mut(location.cell_index) {
-                        let current_mass = cell.mass_kg();
-                        let new_mass = (current_mass + mass_delta).max(1e10); // Minimum mass
-                        *cell = cell.with_mass(new_mass);
-                    }
-                }
-            }
-        }
-    }
-
-    /// Run simulation using binary pairing system
-    pub fn run_with_binary_pairing(&mut self) {
-        println!("🚀 Starting simulation with integrated binary pairing system...");
-
-        self.state = SimulationState::Running;
-        let start_time = Instant::now();
-
-        while self.steps < self.config.steps {
-            let step_start = Instant::now();
-
-            // Process one step with binary pairing
-            self.step_with_binary_pairing();
-
-            // Progress reporting
-            if start_time.elapsed().as_secs() >= 120 || self.steps == self.config.steps {
-                self.report_binary_pairing_progress(&start_time);
-            }
-        }
-
-        self.state = SimulationState::Stopped;
-        println!("✅ Binary pairing simulation completed!");
-    }
-
-    /// Report progress for binary pairing simulation
-    fn report_binary_pairing_progress(&self, start_time: &Instant) {
-        let elapsed = start_time.elapsed();
-        let progress = self.steps as f64 / self.config.steps as f64 * 100.0;
-        let million_years = self.steps as f64 * self.config.years_per_step / 1_000_000.0;
-
-        println!("⏰ Binary Pairing Progress: {:.1}% ({:.1} million years)", progress, million_years);
-        println!("   - Steps completed: {}/{}", self.steps, self.config.steps);
-        println!("   - Elapsed time: {:.1} minutes", elapsed.as_secs_f64() / 60.0);
-
-        let (pairs_processed, listener_calls, total_pairs) = self.binary_pairing_system.get_performance_stats();
-        println!("   - Binary pairs: {} total, {} processed, {} listener calls",
-                 total_pairs, pairs_processed, listener_calls);
-
-        let metrics = self.simple_transaction_manager.get_performance_metrics();
-        println!("   - Transactions: {} total", metrics.total_transactions);
     }
 
     fn get_layer_name(layer_idx: usize) -> &'static str {

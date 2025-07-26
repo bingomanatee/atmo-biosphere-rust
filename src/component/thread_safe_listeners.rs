@@ -195,7 +195,8 @@ pub fn create_thread_safe_listeners() -> Vec<Box<dyn BinaryPairListener + Send>>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::binary_pairing::{BinaryPairCell, CellLocation};
+    use crate::binary_pairing::BinaryPairCell;
+    use crate::transaction_manager::CellLocation;
     use crate::sim_immut::energy_mass_cell_immut::EnergyMassCellImmut;
     use crate::material::MaterialPhases;
     use h3o::CellIndex;
