@@ -348,6 +348,11 @@ impl EnergyMassCellImmut {
         MaterialsLoader::get_phase_properties(&self.material_name, self.material_phase)
             .expect("Failed to load material properties")
     }
+
+    /// Public accessor for temperature (calls trait method)
+    pub fn get_temperature_kelvin(&self) -> f64 {
+        self.temperature_kelvin()
+    }
 }
 
 impl EnergyMass for EnergyMassCellImmut {

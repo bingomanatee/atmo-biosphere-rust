@@ -1,5 +1,7 @@
 pub mod sim_immut;
 pub mod transaction_manager;
+pub mod transaction_manager_simple;
+pub mod binary_pairing;
 pub mod component;
 pub mod events;
 

@@ -800,8 +800,8 @@ impl CoreHeatComponent {
                                     let cell_energy = energy_per_cell * falloff_factor;
 
                                     if cell_energy > 0.0 {
-                                        // Direct energy addition (transaction system temporarily disabled)
-                                        cell.add_energy_joules(cell_energy);
+                                        // Direct energy addition using immutable pattern
+                                        *cell = cell.clone().with_energy_delta(cell_energy);
                                         cells_energized += 1;
                                     }
                                 }
@@ -982,7 +982,7 @@ impl CoreHeatComponent {
             if let Some(column) = deepest_layer.layers.get(&hotspot.cell_index) {
                 if let Some(deep_cell) = column.cells.last() {
                     // Calculate density of deep cell (heated by hotspot)
-                    let deep_temp = deep_cell.temperature_kelvin();
+                    let deep_temp = deep_cell.get_temperature_kelvin();
                     let deep_pressure = deep_cell.pressure_pa();
                     let deep_density = self.calculate_density_from_temp_pressure(deep_temp, deep_pressure);
 
@@ -994,7 +994,7 @@ impl CoreHeatComponent {
                     if let Some(surface_layer) = sim.layer_sets.get(0) {
                         if let Some(surface_column) = surface_layer.layers.get(&hotspot.cell_index) {
                             if let Some(surface_cell) = surface_column.cells.first() {
-                                let surface_temp = surface_cell.temperature_kelvin();
+                                let surface_temp = surface_cell.get_temperature_kelvin();
                                 let surface_pressure = surface_cell.pressure_pa();
                                 let surface_density = self.calculate_density_from_temp_pressure(surface_temp, surface_pressure);
 

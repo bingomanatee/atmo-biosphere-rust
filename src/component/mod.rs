@@ -2,6 +2,10 @@ pub mod component_trait;
 // pub mod convection_plume_component; // Temporarily disabled - needs major refactor
 // pub mod conduction_component; // Temporarily disabled - needs refactor
 pub mod surface_emission_component;
+pub mod radiative_transfer_component;
+pub mod radiative_transfer_listener;
+pub mod core_heat_listener;
+pub mod thread_safe_listeners;
 pub mod core_heat_component;
 
 pub use component_trait::SimComponent;

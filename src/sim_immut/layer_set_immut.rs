@@ -11,7 +11,7 @@ pub struct LayerSetImmut {
     pub resolution: Resolution,
 }
 
-/// Column of immutable cells
+/// Column of immutable cells with projections
 #[derive(Debug, Clone)]
 pub struct ColumnImmut {
     pub cells: Vec<EnergyMassCellImmut>,
