@@ -16,3 +16,4 @@ pub mod material;
 pub mod utils;
 pub mod constants;
 pub mod profiling;
+pub mod reporting;

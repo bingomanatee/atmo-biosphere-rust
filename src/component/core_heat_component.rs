@@ -549,12 +549,7 @@ impl CoreHeatComponent {
 
                 self.hotspots.push(hotspot);
 
-                println!("🌋 Created {} hotspot at cell {} with {:.1}x max heat multiplier (lifetime: {:.0} years)",
-                    if is_upwell { "upwell" } else { "downwell" },
-                    cell_index,
-                    max_heat_multiplier,
-                    lifetime
-                );
+                // Hotspot created
             }
         }
     }
@@ -611,19 +606,7 @@ impl CoreHeatComponent {
                 }
             }
 
-            // Optional: Print debug info occasionally
-            if self.current_year % 10000.0 < years_per_step {
-                println!("🔥 Core Radiance (3D): Added {:.2e}J to {} cells (avg: {:.2e}J/cell)",
-                    total_energy_added, cells_affected,
-                    if cells_affected > 0 { total_energy_added / cells_affected as f64 } else { 0.0 });
-
-                // Show sample 3D positions and their energy variations
-                for (i, (x, y, z, energy)) in sample_positions.iter().enumerate() {
-                    let variation_percent = (energy / (self.base_energy_per_cell_per_year * years_per_step) - 1.0) * 100.0;
-                    println!("   Sample {}: ({:.0}, {:.0}, {:.0})km → {:.1}% variation",
-                        i + 1, x, y, z, variation_percent);
-                }
-            }
+            // Core radiance energy applied
         }
     }
 }
@@ -718,7 +701,7 @@ impl CoreHeatComponent {
                 (-0.31, 0.63, -0.93),
                 (0.24, -0.55, -0.89),
             ];
-            println!("🔥 Core Radiance 3D Normalized (Step {}, Year {}): Perlin noise samples:", step, self.current_year as i64);
+            // Core Radiance 3D Normalized Perlin noise samples
 
             for (x, y, z) in sample_positions_normalized {
                 // Apply temporal drift if enabled
@@ -740,13 +723,7 @@ impl CoreHeatComponent {
                 ]);
                 let variation_factor = 1.0 + (noise_value * self.noise_amplitude);
 
-                if self.temporal_drift_per_year.is_some() {
-                    println!("   ({:.2}, {:.2}, {:.2}) → ({:.3}, {:.3}, {:.3}) drifted: {:.3} noise → {:.1}% of base",
-                        x, y, z, drifted_x, drifted_y, drifted_z, noise_value, variation_factor * 100.0);
-                } else {
-                    println!("   ({:.2}, {:.2}, {:.2}) normalized: {:.3} noise → {:.1}% of base",
-                        x, y, z, noise_value, variation_factor * 100.0);
-                }
+                // Perlin noise variation calculated (output suppressed)
             }
         }
     }
@@ -760,8 +737,6 @@ impl CoreHeatComponent {
         let mut total_cells_affected = 0;
         let mut plume_creation_candidates: Vec<(usize, f64, f64)> = Vec::new(); // (hotspot_index, energy, radius)
 
-        println!("🔍 Hotspot energy analysis:");
-
         // Process each active hotspot
         for (i, hotspot) in self.hotspots.iter().enumerate() {
             let (current_size, current_radius, current_heat_multiplier) = hotspot.current_properties(
@@ -772,9 +747,6 @@ impl CoreHeatComponent {
             // Calculate accumulated energy for this hotspot
             let hotspot_energy_per_year = self.base_energy_per_cell_per_year * current_heat_multiplier;
             let accumulated_energy = hotspot_energy_per_year * years_per_step;
-
-            println!("   Hotspot {}: {:.1}x multiplier, {:.1}km radius, {:.2e}J accumulated (threshold: 5e21J)",
-                i, current_heat_multiplier, current_radius, accumulated_energy);
 
             // Apply area-of-effect energy distribution if hotspot is active
             if current_size > 0.1 && current_radius > 1.0 {
@@ -813,16 +785,12 @@ impl CoreHeatComponent {
 
                     // Dual approach for plume creation
                     if hotspot.is_upwell && current_heat_multiplier > 0.5 {
-                        // Debug: Print when we're considering plume creation
-                        if self.current_year < 1500.0 {
-                            println!("      🎯 Considering plume for hotspot {}: energy={:.2e}J, radius={:.1}km",
-                                i, accumulated_energy, current_radius);
-                        }
+                        // Consider plume creation for upwell hotspots
                         // Collect plume creation data for later processing
                         plume_creation_candidates.push((i, accumulated_energy, current_radius));
                     }
 
-                    println!("      📊 Affected {} cells within {:.1}km radius", cells_energized, current_radius);
+                    // Affected cells within radius
                 }
             }
         }
@@ -837,18 +805,18 @@ impl CoreHeatComponent {
                 plumes_created += 1;
                 total_plume_energy += accumulated_energy;
 
-                let hotspot_cell = self.hotspots[hotspot_index].cell_index;
-                println!("      🌋 Hotspot plume #{} created at center cell {} with {:.2e}J ({})",
-                    plume_id, hotspot_cell, accumulated_energy, creation_type);
+                let _hotspot_cell = self.hotspots[hotspot_index].cell_index;
+                // Plume created successfully
             }
         }
 
-        println!("🔥 Hotspot system: {} plumes created, {} cells affected, {:.2e}J total energy",
-                plumes_created, total_cells_affected, total_plume_energy);
+        // Hotspot system processed
         }
 
-        // DIAGNOSTIC: Compare our output with Earth-based radiance values
-        self.compare_with_earth_radiance(years_per_step);
+        // Compare with Earth radiance values occasionally
+        if self.current_year % 100000.0 < years_per_step {
+            self.compare_with_earth_radiance(years_per_step);
+        }
     }
 
     /// Create a plume from a hotspot with concentrated energy
@@ -986,9 +954,7 @@ impl CoreHeatComponent {
                     let deep_pressure = deep_cell.pressure_pa();
                     let deep_density = self.calculate_density_from_temp_pressure(deep_temp, deep_pressure);
 
-                    if debug {
-                        println!("        Deep cell: T={:.1}K, P={:.2e}Pa, ρ={:.1}kg/m³", deep_temp, deep_pressure, deep_density);
-                    }
+                    // Deep cell density calculated
 
                     // Find corresponding surface layer cell for comparison
                     if let Some(surface_layer) = sim.layer_sets.get(0) {
@@ -998,17 +964,13 @@ impl CoreHeatComponent {
                                 let surface_pressure = surface_cell.pressure_pa();
                                 let surface_density = self.calculate_density_from_temp_pressure(surface_temp, surface_pressure);
 
-                                if debug {
-                                    println!("        Surface cell: T={:.1}K, P={:.2e}Pa, ρ={:.1}kg/m³", surface_temp, surface_pressure, surface_density);
-                                }
+                                // Surface cell density calculated
 
                                 // Calculate density differential (higher = more buoyant deep material)
                                 let density_diff = surface_density - deep_density;
                                 let normalized_diff = (density_diff / surface_density).max(0.0);
 
-                                if debug {
-                                    println!("        Density diff: {:.1}kg/m³, normalized: {:.6}", density_diff, normalized_diff);
-                                }
+                                // Density differential calculated
 
                                 return normalized_diff;
                             }
@@ -1101,10 +1063,10 @@ impl CoreHeatComponent {
         self.create_hotspot_plume(sim, hotspot, energy_joules, radius_km)
     }
 
-    /// Compare our radiance output with Earth-based reference values
+    /// Compare our radiance output with Earth-based reference values (silent)
     fn compare_with_earth_radiance(&self, _years_per_step: f64) {
-        println!("\n📊 RADIANCE COMPARISON WITH EARTH VALUES");
-        println!("=========================================");
+        // Radiance comparison calculations (output suppressed for clean simulation)
+        return;
 
         // Our model parameters
         let base_energy_per_year = self.base_energy_per_cell_per_year;

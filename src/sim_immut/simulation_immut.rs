@@ -124,7 +124,6 @@ impl SimulationImmut {
 
         // If SimComponents exist, run them in parallel with binary pairing
         // For now, run sequentially but with structure for future parallelization
-        println!("🔄 Processing {} SimComponents + binary pairing system", self.components.len());
 
         // Process binary pairing system
         self.binary_pairing_system.process_all_pairs(transaction_manager, step, year);
