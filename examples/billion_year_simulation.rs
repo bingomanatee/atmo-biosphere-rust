@@ -6,8 +6,7 @@ use atmo_biosphere_rust::profiling::ComponentProfiler;
 use h3o::Resolution;
 use std::time::Instant;
 
-#[test]
-fn test_fully_integrated_billion_year_simulation() {
+fn main() {
     println!("🌍 FULLY INTEGRATED BILLION YEAR GEOLOGICAL SIMULATION");
     println!("=======================================================");
 
