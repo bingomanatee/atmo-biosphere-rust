@@ -2,6 +2,8 @@
 pub mod collections;
 pub mod events;
 pub mod cell_location;
+pub mod simulation;
+pub mod components;
 
 // Utility modules
 mod h3o_utils;

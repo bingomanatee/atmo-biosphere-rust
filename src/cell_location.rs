@@ -6,7 +6,7 @@ use h3o::CellIndex;
 /// - `layer_set_index`: Which geological layer (0=crust, 1=upper mantle, etc.)
 /// - `h3_cell_index`: H3 geographical cell for horizontal positioning
 /// - `depth_index`: Depth within the vertical column (0=top, 1=deeper, etc.)
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CellLocation {
     pub layer_set_index: usize,    // Which layer set (0=crust, 1=upper mantle, etc.)
     pub h3_cell_index: CellIndex,  // H3 geographical cell

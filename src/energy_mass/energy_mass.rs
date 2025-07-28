@@ -1,18 +1,41 @@
-use std::sync::Arc;
-use crate::material::material::MaterialPhase;
+/// Simple energy and mass data structure for geological cells
+#[derive(Debug, Clone)]
+pub struct EnergyMass {
+    energy_joules: f64,
+    mass_kg: f64,
+}
 
-pub trait EnergyMass {
-    fn energy_joules(&self) -> f64;
-    fn mass_kg(&self) -> f64;
-    fn volume_km3(&self) -> f64;
-    fn material(&self) -> Arc<MaterialPhase>;
-    fn temperature_kelvin(&self) -> f64;
-    fn pressure_pa(&self) -> f64;
+impl EnergyMass {
+    /// Create new EnergyMass
+    pub fn new(energy_joules: f64, mass_kg: f64) -> Self {
+        Self {
+            energy_joules,
+            mass_kg,
+        }
+    }
 
-    fn set_pressure_pa(&mut self, pressure_pa: f64);
-    fn set_energy_joules(&mut self, energy_joules: f64);
-    fn set_temperature_kelvin(&mut self, temperature_kelvin: f64);
+    /// Get energy in joules
+    pub fn energy_joules(&self) -> f64 {
+        self.energy_joules
+    }
 
-    fn add_energy_joules(&mut self, energy_joules: f64);
-    fn remove_energy_joules(&mut self, energy_joules: f64);
+    /// Get mass in kg
+    pub fn mass_kg(&self) -> f64 {
+        self.mass_kg
+    }
+
+    /// Set energy in joules
+    pub fn set_energy_joules(&mut self, energy_joules: f64) {
+        self.energy_joules = energy_joules;
+    }
+
+    /// Add energy in joules
+    pub fn add_energy_joules(&mut self, energy_joules: f64) {
+        self.energy_joules += energy_joules;
+    }
+
+    /// Remove energy in joules
+    pub fn remove_energy_joules(&mut self, energy_joules: f64) {
+        self.energy_joules -= energy_joules;
+    }
 }
