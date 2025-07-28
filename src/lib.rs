@@ -5,6 +5,7 @@ pub mod binary_pairing;
 pub mod component;
 pub mod events;
 pub mod cell_location;
+pub mod collections;
 
 // Deprecated modules moved to deprecated_backup/
 
