@@ -26,21 +26,25 @@ impl Component for BinaryPairComponent {
         "BinaryPairComponent"
     }
     
-    fn initialize(&mut self, sim: &mut Simulation, config: &SimulationConfig) {
+    fn initialize(&mut self, coll_mgr: &mut CollectionsManager, config: &SimulationConfig) {
         // Build all binary pairs during initialization
-        match self.builder.build_all_pairs(&mut sim.coll_mgr, &config.layers) {
+        println!("🔗 BinaryPairComponent: Building binary pairs...");
+        match self.builder.build_all_pairs(coll_mgr, &config.layers) {
             Ok(total_pairs) => {
                 self.total_pairs = total_pairs;
                 self.pairs_built = true;
+                println!("   ✅ Built {} binary pairs successfully", total_pairs);
             }
-            Err(_e) => {
+            Err(e) => {
                 self.pairs_built = false;
+                println!("   ❌ Failed to build binary pairs: {:?}", e);
             }
         }
     }
-    
-    fn step(&self, _coll_mgr: &CollectionsManager, _actor: &mut Actor, step: u32, _year: f64, _config: &SimulationConfig) {
+
+    fn step(&self, _coll_mgr: &CollectionsManager, _actor: &mut Actor, _step: u32, _year: f64, _config: &SimulationConfig) {
         // Binary pairs are static - no processing needed during steps
+        // They were built during initialization
     }
     
     fn complete(&mut self, _sim: &Simulation, _config: &SimulationConfig) {

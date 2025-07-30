@@ -1,6 +1,7 @@
 use crate::collections::{CollectionsManager, Actor, ChangeController};
 use crate::cell_location::CellLocation;
 use crate::energy_mass::EnergyMass;
+use crate::events::{EventEmitter, PerformanceListener, ConsoleListener, SimulationEvent};
 use crate::utils::h3_utils::H3Utils;
 use h3o::Resolution;
 use std::sync::Arc;
@@ -9,6 +10,7 @@ use std::sync::Arc;
 pub enum CollectionName {
     GeologicalCells,
     HotSpots,
+    PerformanceMetrics,
 }
 
 impl CollectionName {
@@ -17,6 +19,7 @@ impl CollectionName {
         match self {
             CollectionName::GeologicalCells => "geological_cells",
             CollectionName::HotSpots => "upwell_hotspots",
+            CollectionName::PerformanceMetrics => "performance_metrics",
         }
     }
 }
@@ -58,15 +61,31 @@ pub struct GeologicalCellData {
     pub density_kg_m3: f64,
 }
 
+/// Performance metric data structure for collections
+#[derive(Debug, Clone)]
+pub struct PerformanceMetricData {
+    pub step: u32,
+    pub component_name: String,
+    pub method_name: String,
+    pub duration_ms: f64,
+    pub timestamp: std::time::SystemTime,
+}
 
+/// Performance metric key for collections
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PerformanceMetricKey {
+    pub step: u32,
+    pub component_name: String,
+    pub method_name: String,
+}
 
 /// Component trait for Actor-based processing with lifecycle phases
 pub trait Component: Send + Sync {
     /// Component name/key for debugging and identification
     fn name(&self) -> &'static str;
 
-    /// Initialize the component with the simulation (called once at start)
-    fn initialize(&mut self, sim: &mut Simulation, config: &SimulationConfig);
+    /// Initialize the component with collections manager and config (called once at start)
+    fn initialize(&mut self, coll_mgr: &mut CollectionsManager, config: &SimulationConfig);
 
     /// Process one simulation step - add changes to actor
     fn step(&self, coll_mgr: &CollectionsManager, actor: &mut Actor, step: u32, year: f64, config: &SimulationConfig);
@@ -90,7 +109,10 @@ impl Simulation {
         
         // Add the geological cells collection
         coll_mgr.add_empty_collection::<CellLocation, GeologicalCellData>(CollectionName::GeologicalCells.as_str());
-        
+
+        // Add the performance metrics collection
+        coll_mgr.add_empty_collection::<PerformanceMetricKey, PerformanceMetricData>(CollectionName::PerformanceMetrics.as_str());
+
         Self {
             coll_mgr,
             config,
@@ -181,7 +203,8 @@ impl Simulation {
         let mut components = std::mem::take(&mut self.components);
 
         for component in &mut components {
-            component.initialize(self, &self.config);
+            println!("   • Initializing {}...", component.name());
+            component.initialize(&mut self.coll_mgr, &self.config);
         }
 
         // Put components back
@@ -203,6 +226,8 @@ impl Simulation {
 
     /// Run one simulation step with Actor pattern
     pub fn step(&mut self) {
+        let step_start = std::time::Instant::now();
+
         if self.components.is_empty() {
             self.current_step += 1;
             return;
@@ -211,6 +236,9 @@ impl Simulation {
         // Process all components with Actor pattern
         let current_step = self.current_step + 1;
         let year = current_step as f64 * self.config.years_per_step as f64;
+
+        // Track step start for performance monitoring
+        // (Simplified approach without full event system for now)
 
         // Update the current step in the collections manager
         self.coll_mgr.set_current_step(current_step);
@@ -221,12 +249,19 @@ impl Simulation {
         // For now, process components sequentially to avoid borrowing issues
         // TODO: Implement proper parallel processing with Arc<CollectionsManager>
         let mut actors = Vec::new();
+        let mut component_timings = Vec::new();
 
         for component in &self.components {
+            let component_start = std::time::Instant::now();
             let mut actor = Actor::new();
 
             // Component processes one step and adds changes to actor
             component.step(&self.coll_mgr, &mut actor, current_step, year, &self.config);
+
+            let component_duration = component_start.elapsed();
+
+            // Store component timing for later addition to collections
+            component_timings.push((component.name().to_string(), component_duration));
 
             actors.push(actor);
         }
@@ -236,6 +271,15 @@ impl Simulation {
 
         // Apply blended changes atomically
         self.coll_mgr.apply_events(blended_changes).unwrap();
+
+        // Add performance metrics directly to collections (after actor processing)
+        let step_duration = step_start.elapsed();
+        self.add_performance_metric(current_step, "simulation", "step", step_duration);
+
+        // Add component performance metrics
+        for (component_name, duration) in component_timings {
+            self.add_performance_metric(current_step, &component_name, "step", duration);
+        }
 
         self.current_step += 1;
     }
@@ -258,12 +302,83 @@ impl Simulation {
     pub fn get_stats(&self) -> SimulationStats {
         let cells_collection = self.get_geological_cells();
         let total_cells = cells_collection.len();
-        
+
         SimulationStats {
             current_step: self.current_step,
             total_steps: self.config.steps,
             total_cells,
             years_simulated: self.current_step * self.config.years_per_step,
+        }
+    }
+
+    /// Get performance metrics summary
+    pub fn get_performance_summary(&self) -> String {
+        let perf_collection = self.coll_mgr
+            .get::<PerformanceMetricKey, PerformanceMetricData>(CollectionName::PerformanceMetrics.as_str())
+            .expect("PerformanceMetrics collection should exist");
+
+        let mut summary = String::new();
+        summary.push_str("📊 Performance Summary\n");
+        summary.push_str("=====================\n");
+
+        // Collect step timings
+        let mut step_times = Vec::new();
+        let mut component_times = std::collections::HashMap::new();
+
+        for entry in perf_collection.iter() {
+            let data = entry.value();
+
+            if data.method_name == "step" {
+                if data.component_name == "simulation" {
+                    step_times.push(data.duration_ms);
+                } else {
+                    *component_times.entry(data.component_name.clone()).or_insert(0.0) += data.duration_ms;
+                }
+            }
+        }
+
+        // Step timing summary
+        if !step_times.is_empty() {
+            let avg_step_time = step_times.iter().sum::<f64>() / step_times.len() as f64;
+            summary.push_str(&format!("Average step time: {:.2} ms\n", avg_step_time));
+            summary.push_str(&format!("Total steps: {}\n", step_times.len()));
+        }
+
+        // Component timing summary
+        summary.push_str("\nComponent Performance:\n");
+        let mut components: Vec<_> = component_times.iter().collect();
+        components.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        for (name, duration) in components {
+            summary.push_str(&format!("  {}: {:.2} ms total\n", name, duration));
+        }
+
+        summary
+    }
+
+    /// Print performance metrics to console
+    pub fn print_performance_metrics(&self) {
+        println!("\n{}", self.get_performance_summary());
+    }
+
+    /// Add a performance metric directly to the collections
+    fn add_performance_metric(&mut self, step: u32, component_name: &str, method_name: &str, duration: std::time::Duration) {
+        let perf_key = PerformanceMetricKey {
+            step,
+            component_name: component_name.to_string(),
+            method_name: method_name.to_string(),
+        };
+        let perf_data = PerformanceMetricData {
+            step,
+            component_name: component_name.to_string(),
+            method_name: method_name.to_string(),
+            duration_ms: duration.as_secs_f64() * 1000.0,
+            timestamp: std::time::SystemTime::now(),
+        };
+
+        // Add directly to the performance metrics collection
+        if let Some(perf_collection) = self.coll_mgr.get_mut::<PerformanceMetricKey, PerformanceMetricData>(CollectionName::PerformanceMetrics.as_str()) {
+            perf_collection.insert(perf_key, perf_data);
         }
     }
 

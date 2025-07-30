@@ -3,12 +3,20 @@ pub mod pressure_component;
 pub mod density_component;
 pub mod layer_cell_component;
 pub mod binary_pair_component;
+pub mod metrics_reporting_component;
+pub mod parallel_radiance_component;
+pub mod radiance_component;
+pub mod thermal_conduction_component;
 
 pub use binary_pair_component::BinaryPairComponent;
 pub use density_component::DensityComponent;
 pub use layer_cell_component::LayerCellComponent;
+pub use metrics_reporting_component::MetricsReportingComponent;
+pub use parallel_radiance_component::ParallelRadianceComponent;
 pub use pressure_component::PressureComponent;
+pub use radiance_component::RadianceComponent;
 pub use thermal_component::ThermalComponent;
+pub use thermal_conduction_component::ThermalConductionComponent;
 
 #[cfg(test)]
 mod component_tests {

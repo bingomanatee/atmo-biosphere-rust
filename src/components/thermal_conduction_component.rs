@@ -45,7 +45,7 @@ impl ThermalConductionComponent {
         // Get material thermal conductivity
         if let Ok(material) = MaterialsLoader::get_phase_properties(material_name, MaterialPhases::Solid) {
             // Thermal conductivity varies with temperature and pressure
-            let base_conductivity = material.thermal_conductivity_w_per_m_k as f64;
+            let base_conductivity = material.thermal_conductivity_w_m_k as f64;
             
             // Temperature effect: conductivity decreases with temperature
             let temp_factor = 1.0 - (cell_data.temperature_k - 273.15) / 2000.0; // Decrease ~50% at 2000K
@@ -75,8 +75,11 @@ impl ThermalConductionComponent {
         // Use harmonic mean for interface conductivity
         let k_interface = 2.0 * k_a * k_b / (k_a + k_b);
         
-        // Calculate thermal conductance for this pair
-        let conductance = pair.thermal_conductance(k_interface); // W/K
+        // Calculate thermal conductance for this pair: G = k * A / L
+        // For now, use simplified geometry - should be improved with actual contact area and distance
+        let contact_area_m2 = 1000.0; // Placeholder: 1000 m² contact area
+        let distance_m = 1000.0;      // Placeholder: 1 km distance
+        let conductance = k_interface * contact_area_m2 / distance_m; // W/K
         
         // Temperature difference
         let temp_diff = cell_b_data.temperature_k - cell_a_data.temperature_k; // K
@@ -103,16 +106,17 @@ impl Component for ThermalConductionComponent {
         "ThermalConductionComponent"
     }
     
-    fn initialize(&mut self, sim: &mut crate::simulation::Simulation) {
+    fn initialize(&mut self, _coll_mgr: &mut CollectionsManager, _config: &crate::simulation::SimulationConfig) {
         println!("🔥 Thermal Conduction Component initialized");
         println!("   - Default conductivity: {:.1} W/m/K", self.default_conductivity);
         println!("   - Time step factor: {:.2}", self.time_step_factor);
         
-        let cells_count = sim.get_geological_cells().len();
+        let cells_count = _coll_mgr.get::<CellLocation, GeologicalCellData>("geological_cells")
+            .map(|c| c.len()).unwrap_or(0);
         println!("   - Total cells: {}", cells_count);
     }
     
-    fn step(&self, coll_mgr: Arc<CollectionsManager>, actor: &mut Actor, _step: u32, _year: f64) {
+    fn step(&self, coll_mgr: &CollectionsManager, actor: &mut Actor, _step: u32, _year: f64, config: &crate::simulation::SimulationConfig) {
         // Get binary pairs for thermal conduction
         let binary_pairs = match coll_mgr.get::<BinaryPairId, BinaryPair>("binary_pairs") {
             Some(pairs) => pairs,
@@ -134,7 +138,7 @@ impl Component for ThermalConductionComponent {
         println!("    ThermalConductionComponent: Processing {} binary pairs for heat transfer", 
                  binary_pairs.len());
         
-        let time_step_years = coll_mgr.config.years_per_step as f64;
+        let time_step_years = config.years_per_step as f64;
         let mut heat_transfers = 0;
         
         // Process each binary pair for thermal conduction
@@ -149,18 +153,18 @@ impl Component for ThermalConductionComponent {
             ) {
                 // Calculate heat transfer between the cells
                 let (energy_change_a, energy_change_b) = self.calculate_heat_transfer(
-                    pair, 
-                    cell_a_data, 
-                    cell_b_data, 
-                    &cell_a_loc, 
-                    &cell_b_loc, 
+                    &*pair,
+                    &*cell_a_data,
+                    &*cell_b_data,
+                    &cell_a_loc,
+                    &cell_b_loc,
                     time_step_years
                 );
                 
                 // Apply energy changes if significant
                 if energy_change_a.abs() > 1e6 { // Minimum 1 MJ threshold
-                    actor.add("geological_cells", cell_a_loc, "energy_joules", energy_change_a);
-                    actor.add("geological_cells", cell_b_loc, "energy_joules", energy_change_b);
+                    actor.add("geological_cells", cell_a_loc.clone(), "energy_joules", energy_change_a);
+                    actor.add("geological_cells", cell_b_loc.clone(), "energy_joules", energy_change_b);
                     heat_transfers += 1;
                 }
             }
@@ -169,14 +173,14 @@ impl Component for ThermalConductionComponent {
         println!("    ThermalConductionComponent: Applied {} significant heat transfers", heat_transfers);
     }
     
-    fn complete(&mut self, sim: &crate::simulation::Simulation) {
+    fn complete(&mut self, sim: &crate::simulation::Simulation, _config: &crate::simulation::SimulationConfig) {
         println!("🔥 Thermal Conduction Component completed");
         
         // Calculate some thermal statistics
         let cells = sim.get_geological_cells();
         let mut total_energy = 0.0;
         let mut min_temp = f64::INFINITY;
-        let mut max_temp = 0.0;
+        let mut max_temp = 0.0f64;
         
         for entry in cells.iter() {
             let cell_data = entry.value();

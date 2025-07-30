@@ -13,6 +13,8 @@ pub mod constants;
 pub mod energy_mass;
 pub mod binary_pair;
 pub mod binary_pair_builder;
+pub mod binary_pair_listener;
+pub mod parallel_cell_processor;
 
 // All simulation and component code moved to deprecated/
 // - sim_immut -> deprecated/src/sim_immut

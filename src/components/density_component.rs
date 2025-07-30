@@ -25,12 +25,14 @@ impl Component for DensityComponent {
         "DensityComponent"
     }
 
-    fn initialize(&mut self, sim: &mut Simulation, _config: &SimulationConfig) {
+    fn initialize(&mut self, _coll_mgr: &mut CollectionsManager, _config: &SimulationConfig) {
         println!("🪨 Density Component initialized");
-        println!("   - Total cells: {}", sim.get_geological_cells().len());
+        let cells_count = _coll_mgr.get::<crate::cell_location::CellLocation, crate::simulation::GeologicalCellData>("geological_cells")
+            .map(|c| c.len()).unwrap_or(0);
+        println!("   - Total cells: {}", cells_count);
     }
 
-    fn step(&self, coll_mgr: CollectionsManager, actor: &mut Actor, _step: u32, _year: f64, _config: &SimulationConfig) {
+    fn step(&self, coll_mgr: &CollectionsManager, actor: &mut Actor, _step: u32, _year: f64, _config: &SimulationConfig) {
         let cells = coll_mgr.get::<crate::cell_location::CellLocation, crate::simulation::GeologicalCellData>("geological_cells")
             .expect("geological_cells collection should exist");
         

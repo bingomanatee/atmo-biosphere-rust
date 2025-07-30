@@ -42,10 +42,12 @@ impl Component for ThermalComponent {
         "ThermalComponent"
     }
 
-    fn initialize(&mut self, sim: &mut Simulation, _config: &SimulationConfig) {
+    fn initialize(&mut self, _coll_mgr: &mut CollectionsManager, _config: &SimulationConfig) {
         println!("🔥 Thermal Component initialized");
         println!("   - Chunk threshold: {} cells", self.chunk_threshold);
-        println!("   - Total cells: {}", sim.get_geological_cells().len());
+        let cells_count = _coll_mgr.get::<CellLocation, GeologicalCellData>("geological_cells")
+            .map(|c| c.len()).unwrap_or(0);
+        println!("   - Total cells: {}", cells_count);
     }
 
     fn step(&self, coll_mgr: &CollectionsManager, actor: &mut Actor, _step: u32, _year: f64, _config: &SimulationConfig) {

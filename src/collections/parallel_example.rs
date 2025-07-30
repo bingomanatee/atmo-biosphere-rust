@@ -10,12 +10,13 @@ pub fn run_parallel_components_example() -> Vec<Box<dyn CollectionChange>> {
         planet: crate::simulation::PlanetConfig {
             radius_km: 6371.0,
             surface_gravity_m_s_s: 9.81,
+            surface_temperature_k: 288.15,
         },
         years_per_step: 1000,
         steps: 1,
         layers: vec![],
     };
-    let mut manager = CollectionsManager::new(config);
+    let mut manager = CollectionsManager::new();
     manager.add_empty_collection::<u32, FooData>("FOO");
     manager.add_empty_collection::<u32, BarData>("BAR");
     
@@ -149,12 +150,13 @@ pub fn run_batched_parallel_execution() {
         planet: crate::simulation::PlanetConfig {
             radius_km: 6371.0,
             surface_gravity_m_s_s: 9.81,
+            surface_temperature_k: 288.15,
         },
         years_per_step: 1000,
         steps: 1,
         layers: vec![],
     };
-    let mut manager = CollectionsManager::new(config);
+    let mut manager = CollectionsManager::new();
     manager.add_empty_collection::<u32, FooData>("FOO");
     manager.add_empty_collection::<u32, BarData>("BAR");
     

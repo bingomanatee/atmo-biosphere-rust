@@ -182,53 +182,49 @@ impl Component for LayerCellComponent {
         "LayerCellComponent"
     }
     
-    fn initialize(&mut self, sim: &mut Simulation, config: &SimulationConfig) {
-        // Initialize all cells with proper geological properties
-        let cells = sim.get_geological_cells();
-
-        for entry in cells.iter() {
-            let (location, _current_data) = (entry.key(), entry.value());
-
-            // Calculate initial geological properties based on depth and layer config
-            let temperature_k = self.calculate_temperature_at_depth(location, config);
-            let pressure_pa = self.calculate_pressure_at_depth(location, config);
-            let material_name = self.get_material_for_layer(location.layer_set_index());
-            let density_kg_m3 = self.calculate_density(material_name, temperature_k, pressure_pa);
-
-            // Calculate volume and mass
-            let volume_m3 = self.get_volume_m3(location, config);
-            let mass_kg = density_kg_m3 * volume_m3;
-
-            // Calculate energy from temperature and mass
-            let energy_joules = self.calculate_energy(mass_kg, temperature_k, material_name);
-
-            // Set initial cell properties directly in simulation
-            // TODO: This should use a proper initialization API, not the collections directly
-            if let Some(geological_cells) = sim.coll_mgr.get_mut::<CellLocation, GeologicalCellData>("geological_cells") {
-                if let Some(cell_data) = geological_cells.get_mut(location) {
-                    cell_data.temperature_k = temperature_k;
-                    cell_data.pressure_pa = pressure_pa;
-                    cell_data.density_kg_m3 = density_kg_m3;
-                    cell_data.energy_mass = crate::energy_mass::EnergyMass::new(energy_joules, mass_kg);
-                }
-            }
-        }
-
-        self.initialized = true;
+    fn initialize(&mut self, _coll_mgr: &mut CollectionsManager, _config: &SimulationConfig) {
+        // LayerCellComponent initialization is now handled in the first step
+        // to avoid borrowing conflicts with the simulation collections
+        self.initialized = false; // Will be set to true after first step initialization
     }
 
     fn step(&self, coll_mgr: &CollectionsManager, actor: &mut Actor, step: u32, _year: f64, config: &SimulationConfig) {
-        // LayerCellComponent only handles initialization - no ongoing step processing needed
-        // Temperature and density changes should be handled by other components that modify energy/mass
+        // Initialize cells on the first step to avoid borrowing conflicts
+        if step == 1 && !self.initialized {
+            let cells = coll_mgr.get::<CellLocation, GeologicalCellData>("geological_cells")
+                .expect("geological_cells collection should exist");
 
-        // TODO: In the future, this could handle:
-        // - Recalculating density when temperature/pressure changes significantly
-        // - Updating temperature when energy changes (E = m * c * T)
-        // - Phase transitions when temperature/pressure cross thresholds
-        // But for now, these properties are set once during initialization
+            for entry in cells.iter() {
+                let (location, _current_data) = (entry.key(), entry.value());
+
+                // Calculate initial geological properties based on depth and layer config
+                let temperature_k = self.calculate_temperature_at_depth(location, config);
+                let pressure_pa = self.calculate_pressure_at_depth(location, config);
+                let material_name = self.get_material_for_layer(location.layer_set_index());
+                let density_kg_m3 = self.calculate_density(material_name, temperature_k, pressure_pa);
+
+                // Calculate volume and mass
+                let volume_m3 = self.get_volume_m3(location, config);
+                let mass_kg = density_kg_m3 * volume_m3;
+
+                // Calculate energy from temperature and mass
+                let energy_joules = self.calculate_energy(mass_kg, temperature_k, material_name);
+
+                // Set initial cell properties using actor (field-by-field)
+                actor.replace("geological_cells", *location, "temperature_k", temperature_k);
+                actor.replace("geological_cells", *location, "pressure_pa", pressure_pa);
+                actor.replace("geological_cells", *location, "density_kg_m3", density_kg_m3);
+                // Set EnergyMass fields individually since Actor only supports f64
+                actor.replace("geological_cells", *location, "energy_joules", energy_joules);
+                actor.replace("geological_cells", *location, "mass_kg", mass_kg);
+            }
+
+            // Note: We can't set self.initialized = true here because self is not mutable
+            // This is a limitation of the current component architecture
+        }
     }
     
-    fn complete(&mut self, sim: &Simulation, config: &SimulationConfig) {
+    fn complete(&mut self, _sim: &Simulation, _config: &SimulationConfig) {
         // Component cleanup - no output needed
     }
 }
