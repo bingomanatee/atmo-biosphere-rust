@@ -38,4 +38,19 @@ impl EnergyMass {
     pub fn remove_energy_joules(&mut self, energy_joules: f64) {
         self.energy_joules -= energy_joules;
     }
+
+    /// Set mass in kg
+    pub fn set_mass_kg(&mut self, mass_kg: f64) {
+        self.mass_kg = mass_kg;
+    }
+
+    /// Add mass in kg
+    pub fn add_mass_kg(&mut self, mass_kg: f64) {
+        self.mass_kg += mass_kg;
+    }
+
+    /// Remove mass in kg
+    pub fn remove_mass_kg(&mut self, mass_kg: f64) {
+        self.mass_kg -= mass_kg;
+    }
 }

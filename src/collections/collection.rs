@@ -3,6 +3,7 @@ use std::hash::Hash;
 
 /// Generic concurrent collection that stores data by key
 #[derive(Debug)]
+#[derive(Clone)]
 pub struct Collection<K, T>
 where
     K: Hash + Eq + Clone + Send + Sync,

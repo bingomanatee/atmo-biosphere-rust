@@ -88,6 +88,9 @@ impl PointSampler {
 pub struct H3Utils;
 
 impl H3Utils {
+    pub fn new() -> Self {
+        H3Utils
+    }
     pub fn iter_cells_with_base(
         resolution: Resolution,
     ) -> impl Iterator<Item = (CellIndex, CellIndex)> {
@@ -261,6 +264,18 @@ impl H3Utils {
     /// Convenience method using Earth's radius
     pub fn cell_distance_earth_m(cell_a: CellIndex, cell_b: CellIndex) -> f64 {
         Self::cell_distance_m(cell_a, cell_b, EARTH_RADIUS_KM)
+    }
+
+    /// Calculate the great circle distance between two H3 cells in kilometers
+    /// Convenience method for binary pair calculations
+    pub fn distance_km(cell_a: CellIndex, cell_b: CellIndex) -> f64 {
+        Self::cell_distance_m(cell_a, cell_b, EARTH_RADIUS_KM) / 1000.0
+    }
+
+    /// Get neighboring cells for a given cell index
+    /// Convenience method for binary pair calculations
+    pub fn get_neighbors(cell_index: CellIndex) -> Vec<CellIndex> {
+        Self::neighbors_for(cell_index)
     }
 
     /// Get the area of a cell at the given resolution for a planet with the given radius

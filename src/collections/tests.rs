@@ -7,7 +7,16 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     fn setup_manager() -> CollectionsManager {
-        let mut manager = CollectionsManager::new();
+        let config = crate::simulation::SimulationConfig {
+            planet: crate::simulation::PlanetConfig {
+                radius_km: 6371.0,
+                surface_gravity_m_s_s: 9.81,
+            },
+            years_per_step: 1000,
+            steps: 1,
+            layers: vec![],
+        };
+        let mut manager = CollectionsManager::new(config);
         manager.add_empty_collection::<u32, FooData>("FOO");
         manager.add_empty_collection::<u32, BarData>("BAR");
         manager
@@ -134,7 +143,16 @@ mod tests {
         println!("🧪 Testing Collections System with crossbeam + dashmap");
 
         // Setup collections manager
-        let mut manager = CollectionsManager::new();
+        let config = crate::simulation::SimulationConfig {
+            planet: crate::simulation::PlanetConfig {
+                radius_km: 6371.0,
+                surface_gravity_m_s_s: 9.81,
+            },
+            years_per_step: 1000,
+            steps: 1,
+            layers: vec![],
+        };
+        let mut manager = CollectionsManager::new(config);
         manager.add_empty_collection::<u32, FooData>("FOO");
         manager.add_empty_collection::<u32, BarData>("BAR");
 
@@ -185,7 +203,16 @@ mod tests {
         println!("🚀 Testing Parallel Collections System");
 
         // Setup collections manager
-        let mut manager = CollectionsManager::new();
+        let config = crate::simulation::SimulationConfig {
+            planet: crate::simulation::PlanetConfig {
+                radius_km: 6371.0,
+                surface_gravity_m_s_s: 9.81,
+            },
+            years_per_step: 1000,
+            steps: 1,
+            layers: vec![],
+        };
+        let mut manager = CollectionsManager::new(config);
         manager.add_empty_collection::<u32, FooData>("FOO");
         manager.add_empty_collection::<u32, BarData>("BAR");
 

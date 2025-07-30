@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::any::Any;
+use crate::simulation::SimulationConfig;
 
 use crossbeam::channel::{unbounded, Sender, Receiver};
 use crate::collections::{Collection, CollectionsEnum};
@@ -80,17 +81,33 @@ pub struct CollectionsManager {
     // Thread-safe event channel
     event_sender: Sender<CollectionEvent>,
     event_receiver: Receiver<CollectionEvent>,
+    /// Simulation configuration for component access
+    pub config: SimulationConfig,
+    /// Current simulation step
+    pub current_step: u32,
 }
 
 impl CollectionsManager {
     /// Create new empty collections manager with event channel
-    pub fn new() -> Self {
+    pub fn new(config: SimulationConfig) -> Self {
         let (sender, receiver) = unbounded();
         Self {
             collections: HashMap::new(),
             event_sender: sender,
             event_receiver: receiver,
+            config,
+            current_step: 0,
         }
+    }
+
+    /// Update the current simulation step
+    pub fn set_current_step(&mut self, step: u32) {
+        self.current_step = step;
+    }
+
+    /// Get the current simulation year
+    pub fn current_year(&self) -> f64 {
+        self.current_step as f64 * self.config.years_per_step as f64
     }
 
     /// Get a thread-safe event emitter for components
@@ -127,6 +144,22 @@ impl CollectionsManager {
         self.collections
             .get(name)
             .and_then(|boxed| boxed.downcast_ref::<Collection<K, T>>())
+    }
+
+    /// Type-safe mutable access to collections by string name
+    pub fn get_mut<K, T>(&mut self, name: &str) -> Option<&mut Collection<K, T>>
+    where
+        K: 'static + Clone + std::hash::Hash + Eq + Send + Sync,
+        T: 'static + Clone + Send + Sync,
+    {
+        self.collections
+            .get_mut(name)
+            .and_then(|boxed| boxed.downcast_mut::<Collection<K, T>>())
+    }
+
+    /// List all collection names for debugging
+    pub fn list_collections(&self) -> Vec<String> {
+        self.collections.keys().cloned().collect()
     }
 
     /// Type-safe access to collections by enum (for convenience)
@@ -218,7 +251,7 @@ impl CollectionsManager {
     fn apply_field_delta(&mut self, collection_name: &str, key: &CellLocation, field: &str, delta: f64) -> Result<(), String> {
         // This is a placeholder - in real implementation, you'd need to handle
         // different collection types generically or use a trait system
-        if collection_name == "GEOLOGICAL_CELLS" {
+        if collection_name == "geological_cells" {
             if let Some(collection) = self.collections.get_mut(collection_name) {
                 if let Some(cells) = collection.downcast_mut::<crate::collections::Collection<CellLocation, crate::simulation::GeologicalCellData>>() {
                     cells.modify(key, |cell_data| {
@@ -227,6 +260,7 @@ impl CollectionsManager {
                             "pressure_pa" => cell_data.pressure_pa += delta,
                             "density_kg_m3" => cell_data.density_kg_m3 += delta,
                             "energy_joules" => cell_data.energy_mass.add_energy_joules(delta),
+                            "mass_kg" => cell_data.energy_mass.add_mass_kg(delta),
                             _ => {}, // Unknown field - could log warning
                         }
                     });
@@ -238,7 +272,7 @@ impl CollectionsManager {
 
     /// Apply field set using structural pattern matching
     fn apply_field_set(&mut self, collection_name: &str, key: &CellLocation, field: &str, value: f64) -> Result<(), String> {
-        if collection_name == "GEOLOGICAL_CELLS" {
+        if collection_name == "geological_cells" {
             if let Some(collection) = self.collections.get_mut(collection_name) {
                 if let Some(cells) = collection.downcast_mut::<crate::collections::Collection<CellLocation, crate::simulation::GeologicalCellData>>() {
                     cells.modify(key, |cell_data| {
@@ -247,6 +281,7 @@ impl CollectionsManager {
                             "pressure_pa" => cell_data.pressure_pa = value,
                             "density_kg_m3" => cell_data.density_kg_m3 = value,
                             "energy_joules" => cell_data.energy_mass.set_energy_joules(value),
+                            "mass_kg" => cell_data.energy_mass.set_mass_kg(value),
                             _ => {}, // Unknown field
                         }
                     });
@@ -329,3 +364,5 @@ impl EventEmitter {
         let _ = self.sender.send(event);
     }
 }
+
+

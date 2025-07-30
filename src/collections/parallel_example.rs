@@ -6,7 +6,16 @@ use crossbeam;
 /// Example of parallel component execution with concurrent collections
 pub fn run_parallel_components_example() -> Vec<Box<dyn CollectionChange>> {
     // Setup collections manager
-    let mut manager = CollectionsManager::new();
+    let config = crate::simulation::SimulationConfig {
+        planet: crate::simulation::PlanetConfig {
+            radius_km: 6371.0,
+            surface_gravity_m_s_s: 9.81,
+        },
+        years_per_step: 1000,
+        steps: 1,
+        layers: vec![],
+    };
+    let mut manager = CollectionsManager::new(config);
     manager.add_empty_collection::<u32, FooData>("FOO");
     manager.add_empty_collection::<u32, BarData>("BAR");
     
@@ -136,7 +145,16 @@ pub fn process_foo_component(manager: &CollectionsManager) -> Vec<Box<dyn Collec
 
 /// Example of batched parallel execution
 pub fn run_batched_parallel_execution() {
-    let mut manager = CollectionsManager::new();
+    let config = crate::simulation::SimulationConfig {
+        planet: crate::simulation::PlanetConfig {
+            radius_km: 6371.0,
+            surface_gravity_m_s_s: 9.81,
+        },
+        years_per_step: 1000,
+        steps: 1,
+        layers: vec![],
+    };
+    let mut manager = CollectionsManager::new(config);
     manager.add_empty_collection::<u32, FooData>("FOO");
     manager.add_empty_collection::<u32, BarData>("BAR");
     

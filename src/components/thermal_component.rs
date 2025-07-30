@@ -1,5 +1,5 @@
 use crate::simulation::Component;
-use crate::collections::{CollectionsManager, Actor};
+use crate::collections::{Actor, CollectionsManager};
 use crate::cell_location::CellLocation;
 use crate::simulation::GeologicalCellData;
 
@@ -39,8 +39,19 @@ impl ThermalComponent {
 }
 
 impl Component for ThermalComponent {
-    fn process(&self, manager: &CollectionsManager, actor: &mut Actor) {
-        let cells = manager.get::<CellLocation, GeologicalCellData>("GEOLOGICAL_CELLS").unwrap();
+    fn name(&self) -> &'static str {
+        "ThermalComponent"
+    }
+
+    fn initialize(&mut self, sim: &mut crate::simulation::Simulation) {
+        println!("🔥 Thermal Component initialized");
+        println!("   - Chunk threshold: {} cells", self.chunk_threshold);
+        println!("   - Total cells: {}", sim.get_geological_cells().len());
+    }
+
+    fn step(&self, coll_mgr: &CollectionsManager, actor: &mut Actor, _step: u32, _year: f64) {
+        let cells = coll_mgr.get::<crate::cell_location::CellLocation, crate::simulation::GeologicalCellData>("geological_cells")
+            .expect("geological_cells collection should exist");
         let cell_count = cells.len();
         
         if cell_count > self.chunk_threshold {
@@ -81,9 +92,11 @@ impl Component for ThermalComponent {
             }
         }
     }
-    
-    fn name(&self) -> &'static str {
-        "ThermalComponent"
+
+    fn complete(&mut self, sim: &crate::simulation::Simulation) {
+        println!("🔥 Thermal Component completed");
+        println!("   - Final total cells: {}", sim.get_geological_cells().len());
+        println!("   - Chunk threshold was: {} cells", self.chunk_threshold);
     }
 }
 
