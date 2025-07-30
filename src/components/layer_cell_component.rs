@@ -1,52 +1,135 @@
-use crate::simulation::Component;
-use crate::collections::Actor;
+use h3o::Resolution;
 use crate::cell_location::CellLocation;
-use crate::material::materials_loader::MaterialsLoader;
+use crate::collections::{Actor, CollectionsManager};
+use crate::constants::{KM2_TO_M2, KM_TO_M};
 use crate::material::material::MaterialPhases;
-use std::sync::Arc;
+use crate::material::materials_loader::MaterialsLoader;
+use crate::simulation::{Component, GeologicalCellData, Simulation, SimulationConfig};
+use crate::utils::h3_utils::H3Utils;
 
 /// Layer Cell Component - initializes cells with proper geological properties
 /// Based on the deprecated LayerSetImmut and EnergyMassCellImmut initialization
 pub struct LayerCellComponent {
-    pub surface_temp_k: f64,
     pub initialized: bool,
 }
 
 impl LayerCellComponent {
     pub fn new() -> Self {
         Self {
-            surface_temp_k: 288.15, // 15°C surface temperature
             initialized: false,
         }
     }
     
-    pub fn with_surface_temperature(surface_temp_k: f64) -> Self {
-        Self {
-            surface_temp_k,
-            initialized: false,
+    /// Calculate temperature at depth by iterating through layer history
+    fn calculate_temperature_at_depth(&self, location: &CellLocation, config: &SimulationConfig) -> f64 {
+        let mut temperature_k = config.planet.surface_temperature_k;
+        let current_layer = location.layer_set_index();
+        let current_depth = location.depth_index();
+
+        // Add temperature increase from all layers above current layer
+        for layer_idx in 0..current_layer {
+            if layer_idx < config.layers.len() {
+                let layer_config = &config.layers[layer_idx];
+                let layer_thickness_km = layer_config.height_per_step_km * layer_config.depth_steps as f64;
+                let temp_increase = layer_thickness_km * layer_config.temperature_gradient_k_per_km;
+                temperature_k += temp_increase;
+            }
         }
+
+        // Add temperature increase from current layer up to current depth
+        if current_layer < config.layers.len() {
+            let current_layer_config = &config.layers[current_layer];
+            let depth_in_current_layer_km = current_layer_config.height_per_step_km * current_depth as f64;
+            let temp_increase = depth_in_current_layer_km * current_layer_config.temperature_gradient_k_per_km;
+            temperature_k += temp_increase;
+        }
+
+        temperature_k
     }
     
-    /// Calculate temperature at depth using geological gradient
-    fn calculate_temperature_at_depth(&self, depth_km: f64, layer_index: usize) -> f64 {
-        // Geological temperature gradients (K/km) based on layer
-        let gradient_k_per_km = match layer_index {
-            0 => 25.0,  // Crust: 25K/km (high gradient)
-            1 => 15.0,  // Upper mantle: 15K/km (moderate)
-            2 => 10.0,  // Lower mantle: 10K/km (low)
-            _ => 5.0,   // Deep: 5K/km (very low)
-        };
-        
-        self.surface_temp_k + (depth_km * gradient_k_per_km)
+    /// Calculate pressure at depth based on gravity and estimated mass of overlying material
+    fn calculate_pressure_at_depth(&self, location: &CellLocation, config: &SimulationConfig) -> f64 {
+        let surface_pressure_pa = 101325.0; // Should come from config.planet.surface_pressure_pa
+        let gravity_m_s2 = config.planet.surface_gravity_m_s_s;
+        let current_layer = location.layer_set_index();
+        let current_depth = location.depth_index();
+
+        // Get H3 cell area for this resolution and planet
+        let h3_cell = location.h3_cell_index();
+        let resolution = h3_cell.resolution();
+        let area_m2 = self.get_h3_cell_area_m2(resolution, config);
+
+        let mut total_mass_above_kg = 0.0;
+
+        // Calculate mass from all layers above current layer
+        for layer_idx in 0..current_layer {
+            if layer_idx < config.layers.len() {
+                let layer_config = &config.layers[layer_idx];
+                let material_name = self.get_material_for_layer(layer_idx);
+                let estimated_density = MaterialsLoader::get_phase_properties(material_name, MaterialPhases::Solid)
+                    .map(|material| material.density_kg_m3 as f64)
+                    .unwrap_or_else(|_| panic!("Material '{}' not found in materials database", material_name));
+
+                // Mass = area × height × density for entire layer
+                let layer_height_m = layer_config.height_per_step_km * layer_config.depth_steps as f64 * 1000.0;
+                let layer_volume_m3 = area_m2 * layer_height_m;
+                let layer_mass_kg = layer_volume_m3 * estimated_density;
+
+                total_mass_above_kg += layer_mass_kg;
+            }
+        }
+
+        // Calculate mass from cells above in current layer
+        if current_layer < config.layers.len() {
+            let current_layer_config = &config.layers[current_layer];
+            let material_name = self.get_material_for_layer(current_layer);
+            let estimated_density = MaterialsLoader::get_phase_properties(material_name, MaterialPhases::Solid)
+                .map(|material| material.density_kg_m3 as f64)
+                .unwrap_or_else(|_| panic!("Material '{}' not found in materials database", material_name));
+
+            // Mass from cells above in same layer
+            let cells_above_height_m = current_layer_config.height_per_step_km * current_depth as f64 * 1000.0;
+            let volume_above_m3 = area_m2 * cells_above_height_m;
+            let mass_above_kg = volume_above_m3 * estimated_density;
+
+            total_mass_above_kg += mass_above_kg;
+        }
+
+        // Calculate pressure: P = P_surface + (mass * g) / area
+        let pressure_from_mass = (total_mass_above_kg * gravity_m_s2) / area_m2;
+
+        surface_pressure_pa + pressure_from_mass
     }
-    
-    /// Calculate pressure at depth using geological pressure
-    fn calculate_pressure_at_depth(&self, depth_km: f64) -> f64 {
-        // Geological pressure: ~27 MPa per km depth (average rock density ~2700 kg/m³)
-        let surface_pressure_pa = 101325.0; // 1 atmosphere
-        let pressure_gradient_pa_per_km = 27_000_000.0; // 27 MPa/km
-        
-        surface_pressure_pa + (depth_km * pressure_gradient_pa_per_km)
+
+    /// Get cell volume in m³ - consolidates all volume calculation logic
+    fn get_volume_m3(&self, location: &CellLocation, config: &SimulationConfig) -> f64 {
+        // Get H3 cell area based on resolution and planetary radius
+        let resolution = location.h3_cell_index().resolution();
+        let area_km2 = H3Utils::cell_area(resolution, config.planet.radius_km);
+        let area_m2 = area_km2 * KM2_TO_M2;
+
+        // Get cell height from layer configuration
+        let height_km = self.get_cell_height_km(location, config);
+        let height_m = height_km * KM_TO_M;
+
+        // Volume = area × height
+        area_m2 * height_m
+    }
+
+    /// Get H3 cell area in m² using resolution and planetary radius
+    fn get_h3_cell_area_m2(&self, resolution: Resolution, config: &SimulationConfig) -> f64 {
+        let area_km2 = H3Utils::cell_area(resolution, config.planet.radius_km);
+        area_km2 * KM2_TO_M2 // Convert km² to m²
+    }
+
+    /// Get the height of a cell in km based on its layer configuration
+    fn get_cell_height_km(&self, location: &CellLocation, config: &SimulationConfig) -> f64 {
+        let layer_index = location.layer_set_index();
+        if layer_index < config.layers.len() {
+            config.layers[layer_index].height_per_step_km
+        } else {
+            10.0 // Fallback height in km
+        }
     }
     
     /// Calculate realistic density based on material, temperature, and pressure
@@ -81,29 +164,7 @@ impl LayerCellComponent {
         }
     }
     
-    /// Calculate cell volume in m³ from H3 cell area and height
-    fn calculate_volume_m3(&self, location: &CellLocation, height_km: f64) -> f64 {
-        // Get H3 cell area (this is a simplified calculation)
-        // In reality, would use proper H3 area calculation
-        let h3_cell = location.h3_cell_index();
-        let resolution = h3_cell.resolution();
-        
-        // Approximate area based on H3 resolution (km²)
-        let area_km2 = match resolution {
-            h3o::Resolution::Zero => 4_250_000.0,
-            h3o::Resolution::One => 607_000.0,
-            h3o::Resolution::Two => 86_700.0,
-            h3o::Resolution::Three => 12_400.0,
-            h3o::Resolution::Four => 1_770.0,
-            h3o::Resolution::Five => 253.0,
-            h3o::Resolution::Six => 36.1,
-            h3o::Resolution::Seven => 5.16,
-            _ => 1.0, // Fallback
-        };
-        
-        // Convert to m³: area_km² * height_km * 1e9 (km² to m², km to m)
-        area_km2 * height_km * 1_000_000_000.0
-    }
+
     
     /// Get material name for layer
     fn get_material_for_layer(&self, layer_index: usize) -> &'static str {
@@ -121,122 +182,53 @@ impl Component for LayerCellComponent {
         "LayerCellComponent"
     }
     
-    fn initialize(&mut self, sim: &mut crate::simulation::Simulation) {
-        println!("🌍 Layer Cell Component initializing geological properties...");
-        println!("   - Surface temperature: {:.1}K ({:.1}°C)", 
-                 self.surface_temp_k, self.surface_temp_k - 273.15);
-        
+    fn initialize(&mut self, sim: &mut Simulation, config: &SimulationConfig) {
+        // Initialize all cells with proper geological properties
         let cells = sim.get_geological_cells();
-        let total_cells = cells.len();
-        println!("   - Total cells to initialize: {}", total_cells);
-        
-        // We'll set the initialized flag and do the actual work in the first step
-        self.initialized = false;
-        
-        println!("✅ Layer Cell Component ready to initialize {} cells", total_cells);
-    }
-    
-    fn step(&self, coll_mgr: &crate::collections::CollectionsManager, actor: &mut Actor, step: u32, _year: f64) {
-        // Only initialize on the first step
-        if step == 1 && !self.initialized {
-            println!("🔧 LayerCellComponent: Initializing geological properties for all cells...");
-            
-            let cells = coll_mgr.get::<crate::cell_location::CellLocation, crate::simulation::GeologicalCellData>("geological_cells")
-                .expect("geological_cells collection should exist");
-            let mut cells_processed = 0;
-            
-            for entry in cells.iter() {
-                let (location, _current_data) = (entry.key(), entry.value());
-                
-                // Calculate depth from surface using actual layer configuration
-                let (depth_km, step_height_km) = match location.layer_set_index() {
-                    0 => { // Continental Crust: 5km per step, 4 steps = 20km total
-                        let step_height = 5.0;
-                        let depth = location.depth_index() as f64 * step_height;
-                        (depth, step_height)
-                    },
-                    1 => { // Upper Mantle: 25km per step, 6 steps = 150km total, starts at 20km
-                        let step_height = 25.0;
-                        let depth = 20.0 + (location.depth_index() as f64 * step_height);
-                        (depth, step_height)
-                    },
-                    2 => { // Lower Mantle: 50km per step, 3 steps = 150km total, starts at 170km
-                        let step_height = 50.0;
-                        let depth = 170.0 + (location.depth_index() as f64 * step_height);
-                        (depth, step_height)
-                    },
-                    _ => {
-                        let step_height = 10.0;
-                        let depth = location.depth_index() as f64 * step_height;
-                        (depth, step_height)
-                    }
-                };
-                
-                // Calculate geological properties
-                let temperature_k = self.calculate_temperature_at_depth(depth_km, location.layer_set_index());
-                let pressure_pa = self.calculate_pressure_at_depth(depth_km);
-                let material_name = self.get_material_for_layer(location.layer_set_index());
-                let density_kg_m3 = self.calculate_density(material_name, temperature_k, pressure_pa);
-                
-                // Calculate volume and mass
-                let volume_m3 = self.calculate_volume_m3(location, step_height_km);
-                let mass_kg = density_kg_m3 * volume_m3;
-                
-                // Calculate energy from temperature and mass
-                let energy_joules = self.calculate_energy(mass_kg, temperature_k, material_name);
-                
-                // Update cell properties using actor
-                actor.replace("geological_cells", *location, "temperature_k", temperature_k);
-                actor.replace("geological_cells", *location, "pressure_pa", pressure_pa);
-                actor.replace("geological_cells", *location, "density_kg_m3", density_kg_m3);
-                actor.replace("geological_cells", *location, "energy_joules", energy_joules);
-                actor.replace("geological_cells", *location, "mass_kg", mass_kg);
 
-                cells_processed += 1;
+        for entry in cells.iter() {
+            let (location, _current_data) = (entry.key(), entry.value());
 
-                // Debug output for first few cells
-                if cells_processed <= 3 {
-                    println!("    Cell {}: Layer[{}] Depth[{}] → Temp[{:.1}K] Pressure[{:.1}MPa] Density[{:.0}kg/m³] Depth[{:.1}km]",
-                             cells_processed, location.layer_set_index(), location.depth_index(),
-                             temperature_k, pressure_pa / 1e6, density_kg_m3, depth_km);
-                }
-                
-                // Progress reporting for large numbers of cells
-                if cells_processed % 100000 == 0 {
-                    println!("    Processed {} cells...", cells_processed);
+            // Calculate initial geological properties based on depth and layer config
+            let temperature_k = self.calculate_temperature_at_depth(location, config);
+            let pressure_pa = self.calculate_pressure_at_depth(location, config);
+            let material_name = self.get_material_for_layer(location.layer_set_index());
+            let density_kg_m3 = self.calculate_density(material_name, temperature_k, pressure_pa);
+
+            // Calculate volume and mass
+            let volume_m3 = self.get_volume_m3(location, config);
+            let mass_kg = density_kg_m3 * volume_m3;
+
+            // Calculate energy from temperature and mass
+            let energy_joules = self.calculate_energy(mass_kg, temperature_k, material_name);
+
+            // Set initial cell properties directly in simulation
+            // TODO: This should use a proper initialization API, not the collections directly
+            if let Some(geological_cells) = sim.coll_mgr.get_mut::<CellLocation, GeologicalCellData>("geological_cells") {
+                if let Some(cell_data) = geological_cells.get_mut(location) {
+                    cell_data.temperature_k = temperature_k;
+                    cell_data.pressure_pa = pressure_pa;
+                    cell_data.density_kg_m3 = density_kg_m3;
+                    cell_data.energy_mass = crate::energy_mass::EnergyMass::new(energy_joules, mass_kg);
                 }
             }
-            
-            println!("✅ LayerCellComponent: Initialized {} cells with geological properties", cells_processed);
-            
-            // Mark as initialized (note: this is a bit of a hack since we can't mutate self in step)
-            // In a real implementation, we'd track this state differently
         }
+
+        self.initialized = true;
+    }
+
+    fn step(&self, coll_mgr: &CollectionsManager, actor: &mut Actor, step: u32, _year: f64, config: &SimulationConfig) {
+        // LayerCellComponent only handles initialization - no ongoing step processing needed
+        // Temperature and density changes should be handled by other components that modify energy/mass
+
+        // TODO: In the future, this could handle:
+        // - Recalculating density when temperature/pressure changes significantly
+        // - Updating temperature when energy changes (E = m * c * T)
+        // - Phase transitions when temperature/pressure cross thresholds
+        // But for now, these properties are set once during initialization
     }
     
-    fn complete(&mut self, sim: &crate::simulation::Simulation) {
-        println!("🌍 Layer Cell Component completed");
-        
-        // Show some statistics
-        let cells = sim.get_geological_cells();
-        let mut temp_sum = 0.0;
-        let mut pressure_sum = 0.0;
-        let mut count = 0;
-        
-        for entry in cells.iter() {
-            let data = entry.value();
-            temp_sum += data.temperature_k;
-            pressure_sum += data.pressure_pa;
-            count += 1;
-            
-            if count >= 1000 { break; } // Sample first 1000 cells
-        }
-        
-        if count > 0 {
-            println!("   - Average temperature (sample): {:.1}K ({:.1}°C)", 
-                     temp_sum / count as f64, (temp_sum / count as f64) - 273.15);
-            println!("   - Average pressure (sample): {:.1} MPa", 
-                     (pressure_sum / count as f64) / 1_000_000.0);
-        }
+    fn complete(&mut self, sim: &Simulation, config: &SimulationConfig) {
+        // Component cleanup - no output needed
     }
 }

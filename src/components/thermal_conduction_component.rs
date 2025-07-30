@@ -1,10 +1,10 @@
-use crate::simulation::Component;
-use crate::collections::{Actor, CollectionsManager};
 use crate::binary_pair::{BinaryPair, BinaryPairId, BinaryPairType};
 use crate::cell_location::CellLocation;
-use crate::simulation::GeologicalCellData;
-use crate::material::materials_loader::MaterialsLoader;
+use crate::collections::{Actor, CollectionsManager};
 use crate::material::material::MaterialPhases;
+use crate::material::materials_loader::MaterialsLoader;
+use crate::simulation::Component;
+use crate::simulation::GeologicalCellData;
 use std::sync::Arc;
 
 /// Thermal Conduction Component - implements heat transfer between neighboring cells
@@ -203,7 +203,7 @@ mod tests {
     use super::*;
     use crate::energy_mass::EnergyMass;
     use h3o::LatLng;
-    
+
     #[test]
     fn test_thermal_conduction_component_creation() {
         let component = ThermalConductionComponent::new();

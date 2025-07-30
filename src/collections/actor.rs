@@ -207,7 +207,7 @@ mod tests {
         });
         assert!(pressure_change.is_some(), "Pressure set should be preserved");
         
-        println!("Blended {} changes into {} compressed changes", 5, blended.len());
+        // Verify compression worked
     }
     
     #[test]

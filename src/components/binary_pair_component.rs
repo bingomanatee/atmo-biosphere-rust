@@ -1,7 +1,6 @@
-use crate::simulation::Component;
-use crate::collections::Actor;
 use crate::binary_pair_builder::BinaryPairBuilder;
-use std::sync::Arc;
+use crate::collections::{Actor, CollectionsManager};
+use crate::simulation::{Component, Simulation, SimulationConfig};
 
 /// Binary Pair Component - builds and manages binary associations between cells
 /// Creates vertical pairs (above/below) and horizontal pairs (H3 neighbors)
@@ -27,38 +26,25 @@ impl Component for BinaryPairComponent {
         "BinaryPairComponent"
     }
     
-    fn initialize(&mut self, sim: &mut crate::simulation::Simulation) {
-        println!("🔗 Binary Pair Component initializing...");
-        
+    fn initialize(&mut self, sim: &mut Simulation, config: &SimulationConfig) {
         // Build all binary pairs during initialization
-        match self.builder.build_all_pairs(&mut sim.coll_mgr) {
+        match self.builder.build_all_pairs(&mut sim.coll_mgr, &config.layers) {
             Ok(total_pairs) => {
                 self.total_pairs = total_pairs;
                 self.pairs_built = true;
-                println!("✅ Binary Pair Component initialized with {} pairs", total_pairs);
             }
-            Err(e) => {
-                println!("❌ Failed to build binary pairs: {}", e);
+            Err(_e) => {
                 self.pairs_built = false;
             }
         }
     }
     
-    fn step(&self, _coll_mgr: &crate::collections::CollectionsManager, _actor: &mut Actor, step: u32, _year: f64) {
+    fn step(&self, _coll_mgr: &CollectionsManager, _actor: &mut Actor, step: u32, _year: f64, _config: &SimulationConfig) {
         // Binary pairs are static - no processing needed during steps
-        if step == 1 && self.pairs_built {
-            println!("🔗 BinaryPairComponent: {} pairs available for geological operations", self.total_pairs);
-        }
     }
     
-    fn complete(&mut self, _sim: &crate::simulation::Simulation) {
-        println!("🔗 Binary Pair Component completed");
-        if self.pairs_built {
-            println!("   - Total pairs created: {}", self.total_pairs);
-            println!("   - Pairs available for thermal/mass transfer operations");
-        } else {
-            println!("   - No pairs were built (initialization failed)");
-        }
+    fn complete(&mut self, _sim: &Simulation, _config: &SimulationConfig) {
+        // Component cleanup - no output needed
     }
 }
 
@@ -71,9 +57,9 @@ impl Default for BinaryPairComponent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::simulation::{Simulation, SimulationConfig, PlanetConfig, LayerConfig};
+    use crate::simulation::{LayerConfig, PlanetConfig, Simulation, SimulationConfig};
     use h3o::Resolution;
-    
+
     #[test]
     fn test_binary_pair_component_creation() {
         let component = BinaryPairComponent::new();
@@ -114,6 +100,6 @@ mod tests {
         assert!(component.pairs_built);
         assert!(component.total_pairs > 0);
         
-        println!("Test simulation created {} binary pairs", component.total_pairs);
+        // Test passed
     }
 }

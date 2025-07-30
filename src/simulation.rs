@@ -36,6 +36,7 @@ pub struct SimulationConfig {
 pub struct PlanetConfig {
     pub radius_km: f64,
     pub surface_gravity_m_s_s: f64,
+    pub surface_temperature_k: f64,
 }
 
 /// Layer configuration
@@ -45,6 +46,7 @@ pub struct LayerConfig {
     pub depth_steps: usize,  // Number of depth steps in this layer
     pub resolution: Resolution,
     pub name: String,
+    pub temperature_gradient_k_per_km: f64,  // Temperature gradient for this layer (K/km)
 }
 
 /// Cell data - closely resembles energy_mass_cell
@@ -64,13 +66,13 @@ pub trait Component: Send + Sync {
     fn name(&self) -> &'static str;
 
     /// Initialize the component with the simulation (called once at start)
-    fn initialize(&mut self, sim: &mut Simulation);
+    fn initialize(&mut self, sim: &mut Simulation, config: &SimulationConfig);
 
     /// Process one simulation step - add changes to actor
-    fn step(&self, coll_mgr: &CollectionsManager, actor: &mut Actor, step: u32, year: f64);
+    fn step(&self, coll_mgr: &CollectionsManager, actor: &mut Actor, step: u32, year: f64, config: &SimulationConfig);
 
     /// Complete/summarize when simulation is done (called once at end)
-    fn complete(&mut self, sim: &Simulation);
+    fn complete(&mut self, sim: &Simulation, config: &SimulationConfig);
 }
 
 /// Main simulation struct
@@ -84,7 +86,7 @@ pub struct Simulation {
 impl Simulation {
     /// Create new simulation with config
     pub fn new(config: SimulationConfig) -> Self {
-        let mut coll_mgr = CollectionsManager::new(config.clone());
+        let mut coll_mgr = CollectionsManager::new();
         
         // Add the geological cells collection
         coll_mgr.add_empty_collection::<CellLocation, GeologicalCellData>(CollectionName::GeologicalCells.as_str());
@@ -123,8 +125,7 @@ impl Simulation {
         // Use configured depth steps for this layer
         let depth_steps = layer_config.depth_steps;
 
-        println!("  Initializing layer {} '{}' with resolution {:?}, {} depth steps ({}km per step)",
-                 layer_index, layer_config.name, layer_config.resolution, depth_steps, layer_config.height_per_step_km);
+
 
         let mut cell_count = 0;
 
@@ -157,7 +158,7 @@ impl Simulation {
             }
         }
 
-        println!("    Layer {} initialized with {} cells", layer_index, cell_count);
+
     }
     
 
@@ -176,50 +177,36 @@ impl Simulation {
 
     /// Initialize all components (call once after adding all components)
     pub fn initialize_components(&mut self) {
-        println!("🔧 Initializing {} components...", self.components.len());
-
         // Temporarily take ownership to avoid borrowing issues
         let mut components = std::mem::take(&mut self.components);
 
         for component in &mut components {
-            println!("  Initializing {}", component.name());
-            component.initialize(self);
+            component.initialize(self, &self.config);
         }
 
         // Put components back
         self.components = components;
-
-        println!("✅ All components initialized");
     }
 
     /// Complete all components (call once at end of simulation)
     pub fn complete_components(&mut self) {
-        println!("🏁 Completing {} components...", self.components.len());
-
         // Temporarily take ownership to avoid borrowing issues
         let mut components = std::mem::take(&mut self.components);
 
         for component in &mut components {
-            println!("  Completing {}", component.name());
-            component.complete(self);
+            component.complete(self, &self.config);
         }
 
         // Put components back
         self.components = components;
-
-        println!("✅ All components completed");
     }
 
     /// Run one simulation step with Actor pattern
     pub fn step(&mut self) {
         if self.components.is_empty() {
-            println!("Simulation step {}/{} (no components)", self.current_step + 1, self.config.steps);
             self.current_step += 1;
             return;
         }
-
-        println!("🚀 Step {}/{}: Processing {} components in parallel...",
-                 self.current_step + 1, self.config.steps, self.components.len());
 
         // Process all components with Actor pattern
         let current_step = self.current_step + 1;
@@ -237,34 +224,24 @@ impl Simulation {
 
         for component in &self.components {
             let mut actor = Actor::new();
-            println!("  {} processing...", component.name());
 
             // Component processes one step and adds changes to actor
-            component.step(&self.coll_mgr, &mut actor, current_step, year);
+            component.step(&self.coll_mgr, &mut actor, current_step, year, &self.config);
 
-            println!("    {}: {} changes queued", component.name(), actor.change_count());
             actors.push(actor);
         }
 
         // Blend all actor changes with compression
-        let total_changes: usize = actors.iter().map(|a| a.change_count()).sum();
         let blended_changes = ChangeController::blend(actors);
-
-        println!("  🔄 Compressed {} changes into {} optimized changes",
-                 total_changes, blended_changes.len());
 
         // Apply blended changes atomically
         self.coll_mgr.apply_events(blended_changes).unwrap();
 
         self.current_step += 1;
-
-        println!("  ✅ Step {} completed", self.current_step);
     }
     
     /// Run the full simulation with complete lifecycle
     pub fn run(&mut self) {
-        println!("🚀 Starting simulation with {} steps", self.config.steps);
-
         // Initialize all components
         self.initialize_components();
 
@@ -275,8 +252,6 @@ impl Simulation {
 
         // Complete all components
         self.complete_components();
-
-        println!("🎉 Simulation completed");
     }
     
     /// Get simulation statistics
@@ -375,7 +350,6 @@ mod tests {
 
     #[test]
     fn test_starting_masses_and_temperatures_are_reasonable() {
-        println!("\n🧪 Testing Starting Masses and Temperatures");
 
         // Create realistic geological simulation
         let config = SimulationConfig {
@@ -410,7 +384,7 @@ mod tests {
         sim.step(); // Apply geological initialization
 
         let cells = sim.get_geological_cells();
-        println!("   Testing {} cells for reasonable starting conditions", cells.len());
+
 
         let mut surface_temps = Vec::new();
         let mut deep_temps = Vec::new();
@@ -472,37 +446,26 @@ mod tests {
         // Statistical validation
         if !surface_temps.is_empty() {
             let avg_surface_temp = surface_temps.iter().sum::<f64>() / surface_temps.len() as f64;
-            println!("   Average surface temperature: {:.1}K ({:.1}°C)",
-                     avg_surface_temp, avg_surface_temp - 273.15);
             assert!(avg_surface_temp > 250.0 && avg_surface_temp < 350.0,
                    "Average surface temperature unrealistic: {:.1}K", avg_surface_temp);
         }
 
         if !deep_temps.is_empty() {
             let avg_deep_temp = deep_temps.iter().sum::<f64>() / deep_temps.len() as f64;
-            println!("   Average deep temperature: {:.1}K ({:.1}°C)",
-                     avg_deep_temp, avg_deep_temp - 273.15);
             assert!(avg_deep_temp > surface_temps.get(0).copied().unwrap_or(300.0),
                    "Deep temperature should be higher than surface");
         }
 
         if !surface_masses.is_empty() {
             let avg_surface_mass = surface_masses.iter().sum::<f64>() / surface_masses.len() as f64;
-            println!("   Average surface cell mass: {:.2e}kg", avg_surface_mass);
             assert!(avg_surface_mass > 1e15 && avg_surface_mass < 1e18,
                    "Average surface mass unrealistic: {:.2e}kg", avg_surface_mass);
         }
 
         if !energy_per_kg_values.is_empty() {
             let avg_energy_per_kg = energy_per_kg_values.iter().sum::<f64>() / energy_per_kg_values.len() as f64;
-            println!("   Average energy per kg: {:.2e}J/kg", avg_energy_per_kg);
             assert!(avg_energy_per_kg > 1e5 && avg_energy_per_kg < 1e7,
                    "Average energy per kg unrealistic: {:.2e}J/kg", avg_energy_per_kg);
         }
-
-        println!("   ✅ All starting masses and temperatures are reasonable");
-        println!("   ✅ Temperature increases with depth as expected");
-        println!("   ✅ Mass values are appropriate for geological cell volumes");
-        println!("   ✅ Energy per kg ratios are realistic for rock materials");
     }
 }

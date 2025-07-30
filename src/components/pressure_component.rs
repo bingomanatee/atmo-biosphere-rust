@@ -1,6 +1,6 @@
-use crate::simulation::Component;
-use crate::collections::{Actor, CollectionsManager};
 use crate::cell_location::CellLocation;
+use crate::collections::{Actor, CollectionsManager};
+use crate::simulation::{Component, Simulation, SimulationConfig};
 use crate::simulation::GeologicalCellData;
 
 /// Pressure component - simple processing (no sub-chunking)
@@ -24,12 +24,12 @@ impl Component for PressureComponent {
         "PressureComponent"
     }
 
-    fn initialize(&mut self, sim: &mut crate::simulation::Simulation) {
+    fn initialize(&mut self, sim: &mut Simulation, _config: &SimulationConfig) {
         println!("💨 Pressure Component initialized");
         println!("   - Total cells: {}", sim.get_geological_cells().len());
     }
 
-    fn step(&self, coll_mgr: &CollectionsManager, actor: &mut Actor, _step: u32, _year: f64) {
+    fn step(&self, coll_mgr: &CollectionsManager, actor: &mut Actor, _step: u32, _year: f64, _config: &SimulationConfig) {
         let cells = coll_mgr.get::<crate::cell_location::CellLocation, crate::simulation::GeologicalCellData>("geological_cells")
             .expect("geological_cells collection should exist");
         
@@ -44,7 +44,7 @@ impl Component for PressureComponent {
         }
     }
 
-    fn complete(&mut self, sim: &crate::simulation::Simulation) {
+    fn complete(&mut self, sim: &Simulation, _config: &SimulationConfig) {
         println!("💨 Pressure Component completed");
         println!("   - Final total cells: {}", sim.get_geological_cells().len());
     }

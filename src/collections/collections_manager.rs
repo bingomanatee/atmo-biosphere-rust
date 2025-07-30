@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::any::Any;
-use crate::simulation::SimulationConfig;
+
 
 use crossbeam::channel::{unbounded, Sender, Receiver};
 use crate::collections::{Collection, CollectionsEnum};
@@ -81,21 +81,18 @@ pub struct CollectionsManager {
     // Thread-safe event channel
     event_sender: Sender<CollectionEvent>,
     event_receiver: Receiver<CollectionEvent>,
-    /// Simulation configuration for component access
-    pub config: SimulationConfig,
     /// Current simulation step
     pub current_step: u32,
 }
 
 impl CollectionsManager {
     /// Create new empty collections manager with event channel
-    pub fn new(config: SimulationConfig) -> Self {
+    pub fn new() -> Self {
         let (sender, receiver) = unbounded();
         Self {
             collections: HashMap::new(),
             event_sender: sender,
             event_receiver: receiver,
-            config,
             current_step: 0,
         }
     }
@@ -106,8 +103,8 @@ impl CollectionsManager {
     }
 
     /// Get the current simulation year
-    pub fn current_year(&self) -> f64 {
-        self.current_step as f64 * self.config.years_per_step as f64
+    pub fn current_year(&self, years_per_step: u32) -> f64 {
+        self.current_step as f64 * years_per_step as f64
     }
 
     /// Get a thread-safe event emitter for components
