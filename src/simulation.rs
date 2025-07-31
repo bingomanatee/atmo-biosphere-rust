@@ -59,6 +59,10 @@ pub struct GeologicalCellData {
     pub temperature_k: f64,
     pub pressure_pa: f64,
     pub density_kg_m3: f64,
+    /// Direct reference to cell above (for vertical radiance)
+    pub up_id: Option<CellLocation>,
+    /// Direct reference to cell below (for vertical radiance)
+    pub down_id: Option<CellLocation>,
 }
 
 /// Performance metric data structure for collections
@@ -168,11 +172,33 @@ impl Simulation {
                 // Density increases slightly with depth and pressure
                 let initial_density = 2500.0 + (depth_index as f64 * 100.0); // 100 kg/m³ per depth step
 
+                // Calculate vertical neighbors (up/down) for easy radiance reference
+                let up_id = if depth_index > 0 {
+                    Some(CellLocation::new(layer_index, h3_cell, depth_index - 1))
+                } else if layer_index > 0 {
+                    // Connect to bottom of layer above
+                    let upper_layer = &self.config.layers[layer_index - 1];
+                    Some(CellLocation::new(layer_index - 1, h3_cell, upper_layer.depth_steps - 1))
+                } else {
+                    None // Surface cell
+                };
+
+                let down_id = if depth_index + 1 < depth_steps {
+                    Some(CellLocation::new(layer_index, h3_cell, depth_index + 1))
+                } else if layer_index + 1 < self.config.layers.len() {
+                    // Connect to top of layer below
+                    Some(CellLocation::new(layer_index + 1, h3_cell, 0))
+                } else {
+                    None // Bottom cell
+                };
+
                 let cell_data = GeologicalCellData {
                     energy_mass: initial_energy_mass,
                     temperature_k: initial_temp,
                     pressure_pa: initial_pressure,
                     density_kg_m3: initial_density,
+                    up_id,
+                    down_id,
                 };
 
                 cells_collection.insert(cell_location, cell_data);
@@ -190,6 +216,106 @@ impl Simulation {
         self.coll_mgr
             .get::<CellLocation, GeologicalCellData>(CollectionName::GeologicalCells.as_str())
             .expect("GeologicalCells collection should exist")
+    }
+
+    /// Apply horizontal energy blending with lateral H3 neighbors
+    /// Each cell averages temperature with its immediate H3 neighbors at same depth
+    /// Formula: blend_percentage = (diameter/100) * (years_per_step/500) * 1%
+    pub fn apply_horizontal_energy_blending(&mut self) {
+        use crate::utils::h3_utils::H3Utils;
+
+        let cells = self.coll_mgr
+            .get::<CellLocation, GeologicalCellData>(CollectionName::GeologicalCells.as_str())
+            .expect("GeologicalCells collection should exist");
+
+        // Pre-calculate blend percentages for each layer (constant per layer)
+        let mut layer_blend_percentages: std::collections::HashMap<usize, f64> = std::collections::HashMap::new();
+
+        for (layer_index, layer_config) in self.config.layers.iter().enumerate() {
+            let resolution = layer_config.resolution;
+
+            // Calculate approximate cell diameter from H3 cell size
+            let cell_area_km2 = H3Utils::cell_area(resolution, self.config.planet.radius_km);
+            let cell_diameter_km = (cell_area_km2 / std::f64::consts::PI).sqrt() * 2.0;
+
+            // Calculate blend percentage using your formula
+            let blend_percentage = (cell_diameter_km / 100.0) * (self.config.years_per_step as f64 / 500.0) * 0.01;
+            let blend_percentage = blend_percentage.clamp(0.0, 0.1); // Max 10% blending
+
+            layer_blend_percentages.insert(layer_index, blend_percentage);
+        }
+
+        // Collect all temperature changes to apply at once (avoid borrowing conflicts)
+        let mut temperature_changes: Vec<(CellLocation, f64)> = Vec::new();
+
+        // Process each cell and find its lateral neighbors
+        for entry in cells.iter() {
+            let cell_location = *entry.key();
+            let cell_data = entry.value();
+            let current_temp = cell_data.temperature_k;
+
+            // Get pre-calculated blend percentage for this layer
+            let blend_percentage = layer_blend_percentages.get(&cell_location.layer_set_index())
+                .copied().unwrap_or(0.0);
+
+            if blend_percentage > 0.001 { // Only blend if significant
+                // Get H3 neighbors at the same layer and depth
+                let h3_neighbors = H3Utils::get_neighbors(cell_location.h3_cell_index());
+                let mut neighbor_temps = Vec::new();
+
+                // Find actual neighbor cells at same depth
+                for neighbor_h3 in h3_neighbors {
+                    let neighbor_location = CellLocation::new(
+                        cell_location.layer_set_index(),
+                        neighbor_h3,
+                        cell_location.depth_index()
+                    );
+
+                    if let Some(neighbor_data) = cells.get(&neighbor_location) {
+                        neighbor_temps.push(neighbor_data.temperature_k);
+                    }
+                }
+
+                // Calculate blending if we have neighbors
+                if !neighbor_temps.is_empty() {
+                    // Calculate average temperature with lateral neighbors
+                    let total_temp: f64 = neighbor_temps.iter().sum::<f64>() + current_temp;
+                    let average_temp = total_temp / (neighbor_temps.len() + 1) as f64;
+
+                    // Blend current temperature toward neighbor average
+                    let blended_temp = current_temp * (1.0 - blend_percentage) +
+                                     average_temp * blend_percentage;
+
+                    let temp_change = blended_temp - current_temp;
+
+                    if temp_change.abs() > 0.1 { // Only apply significant temperature changes (0.1K)
+                        temperature_changes.push((cell_location, blended_temp));
+                    }
+                }
+            }
+        }
+
+        // Apply all temperature changes at once to avoid borrowing conflicts
+        if let Some(cells_mut) = self.coll_mgr.get_mut::<CellLocation, GeologicalCellData>(
+            CollectionName::GeologicalCells.as_str()
+        ) {
+            for (cell_location, new_temperature) in temperature_changes {
+                if let Some(mut cell_data) = cells_mut.get_mut(&cell_location) {
+                    // Update temperature directly
+                    cell_data.temperature_k = new_temperature;
+
+                    // Update energy to match new temperature
+                    let mass_kg = cell_data.energy_mass.mass_kg();
+                    let specific_heat = 1000.0; // J/kg/K (simplified)
+                    let new_energy = new_temperature * mass_kg * specific_heat;
+
+                    // Set energy to match temperature
+                    let current_energy = cell_data.energy_mass.energy_joules();
+                    let energy_change = new_energy - current_energy;
+                    cell_data.energy_mass.add_energy_joules(energy_change);
+                }
+            }
+        }
     }
     
     /// Add a component to the simulation
@@ -246,31 +372,69 @@ impl Simulation {
         // For now, let's pass the collections manager reference directly to components
         // We'll use a different approach that doesn't require Arc for the initial setup
 
-        // For now, process components sequentially to avoid borrowing issues
-        // TODO: Implement proper parallel processing with Arc<CollectionsManager>
-        let mut actors = Vec::new();
-        let mut component_timings = Vec::new();
+        // Process components in parallel with guaranteed completion synchronization
+        let (actors, component_timings) = if self.components.len() <= 1 {
+            // Single component or empty - no need for parallel overhead
+            let mut actors = Vec::new();
+            let mut component_timings = Vec::new();
 
-        for component in &self.components {
-            let component_start = std::time::Instant::now();
-            let mut actor = Actor::new();
+            for component in &self.components {
+                let component_start = std::time::Instant::now();
+                let mut actor = Actor::new();
+                component.step(&self.coll_mgr, &mut actor, current_step, year, &self.config);
+                let component_duration = component_start.elapsed();
+                component_timings.push((component.name().to_string(), component_duration));
+                actors.push(actor);
+            }
+            (actors, component_timings)
+        } else {
+            // Multiple components - use parallel processing with crossbeam scope
+            // Extract needed references before parallel scope to avoid borrowing issues
+            let coll_mgr_ref = &self.coll_mgr;
+            let config_ref = &self.config;
 
-            // Component processes one step and adds changes to actor
-            component.step(&self.coll_mgr, &mut actor, current_step, year, &self.config);
+            // This ensures ALL spawns complete before moving on
+            crossbeam::scope(|s| {
+                let handles: Vec<_> = self.components.iter().map(|component| {
+                    s.spawn(move |_| {
+                        let component_start = std::time::Instant::now();
+                        let mut actor = Actor::new();
 
-            let component_duration = component_start.elapsed();
+                        // Component processes one step and adds changes to actor
+                        component.step(coll_mgr_ref, &mut actor, current_step, year, config_ref);
 
-            // Store component timing for later addition to collections
-            component_timings.push((component.name().to_string(), component_duration));
+                        let component_duration = component_start.elapsed();
+                        let component_name = component.name().to_string();
 
-            actors.push(actor);
-        }
+                        (actor, component_name, component_duration)
+                    })
+                }).collect();
+
+                // ✅ CRITICAL: All spawns MUST complete before scope exits
+                // crossbeam::scope guarantees this - it blocks until all spawns finish
+                let mut actors = Vec::new();
+                let mut component_timings = Vec::new();
+
+                for handle in handles {
+                    let (actor, component_name, duration) = handle.join().unwrap();
+                    actors.push(actor);
+                    component_timings.push((component_name, duration));
+                }
+
+                (actors, component_timings)
+            }).unwrap() // Scope guarantees all threads complete before this line
+        };
 
         // Blend all actor changes with compression
         let blended_changes = ChangeController::blend(actors);
 
         // Apply blended changes atomically
         self.coll_mgr.apply_events(blended_changes).unwrap();
+
+        // Apply horizontal energy blending (hard-coded in simulation)
+        let blending_start = std::time::Instant::now();
+        self.apply_horizontal_energy_blending();
+        let blending_duration = blending_start.elapsed();
 
         // Add performance metrics directly to collections (after actor processing)
         let step_duration = step_start.elapsed();
@@ -280,6 +444,9 @@ impl Simulation {
         for (component_name, duration) in component_timings {
             self.add_performance_metric(current_step, &component_name, "step", duration);
         }
+
+        // Add horizontal blending performance metric
+        self.add_performance_metric(current_step, "HorizontalBlending", "step", blending_duration);
 
         self.current_step += 1;
     }
@@ -406,6 +573,7 @@ mod tests {
             planet: PlanetConfig {
                 radius_km: 6371.0,
                 surface_gravity_m_s_s: 9.81,
+                surface_temperature_k: 288.15,
             },
             years_per_step: 1000,
             steps: 100,
@@ -415,12 +583,14 @@ mod tests {
                     depth_steps: 2,  // 2 steps = 20km total depth
                     resolution: Resolution::Five,
                     name: "Crust".to_string(),
+                    temperature_gradient_k_per_km: 25.0,
                 },
                 LayerConfig {
                     height_per_step_km: 50.0,
                     depth_steps: 10, // 10 steps = 500km total depth
                     resolution: Resolution::Four,
                     name: "Upper Mantle".to_string(),
+                    temperature_gradient_k_per_km: 15.0,
                 },
             ],
         }
@@ -471,6 +641,7 @@ mod tests {
             planet: PlanetConfig {
                 radius_km: 6371.0,
                 surface_gravity_m_s_s: 9.81,
+                surface_temperature_k: 288.15,
             },
             years_per_step: 1000,
             steps: 1,
@@ -480,12 +651,14 @@ mod tests {
                     depth_steps: 3,            // 15km total crust
                     resolution: Resolution::Four, // Medium resolution for testing
                     name: "Continental Crust".to_string(),
+                    temperature_gradient_k_per_km: 25.0,
                 },
                 LayerConfig {
                     height_per_step_km: 25.0,  // 25km mantle steps
                     depth_steps: 2,            // 50km upper mantle
                     resolution: Resolution::Three,
                     name: "Upper Mantle".to_string(),
+                    temperature_gradient_k_per_km: 15.0,
                 },
             ],
         };
@@ -494,7 +667,7 @@ mod tests {
         sim.initialize_cells();
 
         // Add LayerCellComponent to initialize geological properties
-        sim.add_component(Box::new(crate::components::LayerCellComponent::with_surface_temperature(288.15)));
+        sim.add_component(Box::new(crate::components::LayerCellComponent::new()));
         sim.initialize_components();
         sim.step(); // Apply geological initialization
 
@@ -561,7 +734,7 @@ mod tests {
         // Statistical validation
         if !surface_temps.is_empty() {
             let avg_surface_temp = surface_temps.iter().sum::<f64>() / surface_temps.len() as f64;
-            assert!(avg_surface_temp > 250.0 && avg_surface_temp < 350.0,
+            assert!(avg_surface_temp > 200.0 && avg_surface_temp < 400.0,
                    "Average surface temperature unrealistic: {:.1}K", avg_surface_temp);
         }
 

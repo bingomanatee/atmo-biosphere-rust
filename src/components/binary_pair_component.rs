@@ -80,6 +80,7 @@ mod tests {
             planet: PlanetConfig {
                 radius_km: 6371.0,
                 surface_gravity_m_s_s: 9.81,
+                surface_temperature_k: 288.15,
             },
             years_per_step: 1000,
             steps: 1,
@@ -89,17 +90,24 @@ mod tests {
                     depth_steps: 2,  // Small for testing
                     resolution: Resolution::Three, // Coarse for testing
                     name: "Test Crust".to_string(),
+                    temperature_gradient_k_per_km: 25.0,
                 },
             ],
         };
         
-        let mut sim = Simulation::new(config);
+        let mut sim = Simulation::new(config.clone());
         sim.initialize_cells();
         
         // Test component initialization
         let mut component = BinaryPairComponent::new();
-        component.initialize(&mut sim);
-        
+
+        // Initialize cells first
+        sim.initialize_cells();
+
+        // Get collections manager and config for proper initialization
+        let coll_mgr = &mut sim.coll_mgr;
+        component.initialize(coll_mgr, &config);
+
         // Should have built some pairs
         assert!(component.pairs_built);
         assert!(component.total_pairs > 0);

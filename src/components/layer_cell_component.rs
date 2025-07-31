@@ -169,10 +169,11 @@ impl LayerCellComponent {
     /// Get material name for layer
     fn get_material_for_layer(&self, layer_index: usize) -> &'static str {
         match layer_index {
-            0 => "granite",  // Crust
-            1 => "basalt",   // Upper mantle
-            2 => "peridotite", // Lower mantle
-            _ => "iron",     // Core
+            0 => "granite",     // Continental Crust
+            1 => "basalt",      // Upper Mantle
+            2 => "peridotite",  // Lower Mantle
+            3 => "peridotite",  // Asthenosphere (also peridotite)
+            _ => "peridotite",  // Default to peridotite for deep layers
         }
     }
 }

@@ -129,6 +129,8 @@ mod tests {
             temperature_k: 300.0,
             pressure_pa: 101325.0,
             density_kg_m3: 2500.0,
+            up_id: None,
+            down_id: None,
         };
 
         let location = CellLocation::new(

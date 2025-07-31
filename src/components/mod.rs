@@ -7,8 +7,11 @@ pub mod metrics_reporting_component;
 pub mod parallel_radiance_component;
 pub mod radiance_component;
 pub mod thermal_conduction_component;
+pub mod vertical_radiance_component;
+pub mod column_radiance_component;
 
 pub use binary_pair_component::BinaryPairComponent;
+pub use column_radiance_component::ColumnRadianceComponent;
 pub use density_component::DensityComponent;
 pub use layer_cell_component::LayerCellComponent;
 pub use metrics_reporting_component::MetricsReportingComponent;
@@ -17,6 +20,7 @@ pub use pressure_component::PressureComponent;
 pub use radiance_component::RadianceComponent;
 pub use thermal_component::ThermalComponent;
 pub use thermal_conduction_component::ThermalConductionComponent;
+pub use vertical_radiance_component::VerticalRadianceComponent;
 
 #[cfg(test)]
 mod component_tests {
@@ -32,6 +36,7 @@ mod component_tests {
             planet: PlanetConfig {
                 radius_km: 6371.0,
                 surface_gravity_m_s_s: 9.81,
+                surface_temperature_k: 288.15,
             },
             years_per_step: 1000,
             steps: 2,
@@ -41,6 +46,7 @@ mod component_tests {
                     depth_steps: 1,  // Minimal for testing
                     resolution: Resolution::Three, // Coarse for testing
                     name: "Test Layer".to_string(),
+                    temperature_gradient_k_per_km: 25.0,
                 },
             ],
         };

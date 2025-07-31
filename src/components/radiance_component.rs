@@ -440,11 +440,13 @@ mod tests {
             temperature_k: 1500.0, // High temperature
             pressure_pa: 1e8,
             density_kg_m3: 3000.0,
+            up_id: None,
+            down_id: None,
         };
         
         let location = CellLocation::new(
-            h3o::CellIndex::try_from(0x85283473fffffff_u64).unwrap(),
             0, // layer_set_index
+            h3o::CellIndex::try_from(0x85283473fffffff_u64).unwrap(),
             0, // depth_index
         );
         

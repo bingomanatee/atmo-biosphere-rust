@@ -18,3 +18,7 @@ num_cpus = "1.16"
 crossbeam = "0.8"
 dashmap = "5.5"
 strum_macros = "0.27.2"
+
+[[example]]
+name = "billion_year_radiance"
+path = "examples/billion_year_radiance.rs"

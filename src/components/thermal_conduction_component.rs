@@ -226,6 +226,8 @@ mod tests {
             temperature_k: 300.0,
             pressure_pa: 101325.0,
             density_kg_m3: 2500.0,
+            up_id: None,
+            down_id: None,
         };
         
         let location = CellLocation::new(
@@ -251,13 +253,17 @@ mod tests {
             temperature_k: 400.0, // Hot cell
             pressure_pa: 101325.0,
             density_kg_m3: 2500.0,
+            up_id: None,
+            down_id: None,
         };
-        
+
         let cold_cell = GeologicalCellData {
             energy_mass: EnergyMass::new(1000.0, 1000.0),
             temperature_k: 300.0, // Cold cell
             pressure_pa: 101325.0,
             density_kg_m3: 2500.0,
+            up_id: None,
+            down_id: None,
         };
         
         let h3_cell_a = LatLng::new(0.0, 0.0).unwrap().to_cell(h3o::Resolution::Two);
@@ -267,15 +273,15 @@ mod tests {
         let location_b = CellLocation::new(0, h3_cell_b, 0);
         
         // Create a binary pair
-        let pair = BinaryPair::horizontal(location_a, location_b, 10.0, 100.0);
+        let pair = BinaryPair::horizontal(location_a, location_b);
         
         let (energy_change_a, energy_change_b) = component.calculate_heat_transfer(
             &pair, &hot_cell, &cold_cell, &location_a, &location_b, 1000.0 // 1000 years
         );
-        
+
         // Hot cell should lose energy (negative), cold cell should gain energy (positive)
-        assert!(energy_change_a > 0.0); // Cell A (cold) gains energy
-        assert!(energy_change_b < 0.0); // Cell B (hot) loses energy
+        assert!(energy_change_a < 0.0); // Cell A (hot) loses energy
+        assert!(energy_change_b > 0.0); // Cell B (cold) gains energy
         assert!((energy_change_a + energy_change_b).abs() < 1e-6); // Energy conservation
     }
 }
