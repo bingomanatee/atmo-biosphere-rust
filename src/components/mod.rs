@@ -9,9 +9,11 @@ pub mod radiance_component;
 pub mod thermal_conduction_component;
 pub mod vertical_radiance_component;
 pub mod column_radiance_component;
+pub mod column_plume_component;
 
 pub use binary_pair_component::BinaryPairComponent;
 pub use column_radiance_component::ColumnRadianceComponent;
+pub use column_plume_component::ColumnPlumeComponent;
 pub use density_component::DensityComponent;
 pub use layer_cell_component::LayerCellComponent;
 pub use metrics_reporting_component::MetricsReportingComponent;
